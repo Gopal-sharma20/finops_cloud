@@ -1,0 +1,22 @@
+"use strict";
+/*
+ * ATTENTION: An "eval-source-map" devtool has been used.
+ * This devtool is neither made for production nor for readable output files.
+ * It uses "eval()" calls to create a separate source file with attached SourceMaps in the browser devtools.
+ * If you are trying to read the output file, select a different devtool (https://webpack.js.org/configuration/devtool/)
+ * or disable the default devtool with "devtool: false".
+ * If you are looking for production-ready output files, see mode: "production" (https://webpack.js.org/configuration/mode/).
+ */
+(self["webpackChunk_N_E"] = self["webpackChunk_N_E"] || []).push([["_app-pages-browser_locales_es_json"],{
+
+/***/ "(app-pages-browser)/./locales/es.json":
+/*!*************************!*\
+  !*** ./locales/es.json ***!
+  \*************************/
+/***/ (function(module, __unused_webpack_exports, __webpack_require__) {
+
+module.exports = JSON.parse('{"common":{"loading":"Cargando...","error":"Error","success":"Éxito","warning":"Advertencia","info":"Información","save":"Guardar","cancel":"Cancelar","delete":"Eliminar","edit":"Editar","view":"Ver","download":"Descargar","export":"Exportar","import":"Importar","search":"Buscar","filter":"Filtrar","settings":"Configuración","help":"Ayuda","back":"Atrás","next":"Siguiente","previous":"Anterior","close":"Cerrar","open":"Abrir","yes":"Sí","no":"No","ok":"OK","apply":"Aplicar","reset":"Restablecer","clear":"Limpiar","selectAll":"Seleccionar Todo","selectLanguage":"Seleccionar Idioma","active":"Activo","inactive":"Inactivo","enabled":"Habilitado","disabled":"Deshabilitado","online":"En línea","offline":"Desconectado"},"navigation":{"dashboard":"Panel de Control","overview":"Resumen","costAnalysis":"Análisis de Costos","budget":"Presupuesto","reports":"Informes","alerts":"Alertas","optimization":"Optimización","infrastructure":"Infraestructura","resources":"Recursos","monitoring":"Monitoreo","architecture":"Arquitectura","roadmap":"Hoja de Ruta Tecnológica","innovation":"Seguimiento de Innovación","technicalDebt":"Deuda Técnica","profile":"Perfil","logout":"Cerrar Sesión"},"dashboard":{"welcome":"Bienvenido a CloudOptima","subtitle":"Su Plataforma FinOps Multi-Nube","lastUpdated":"Última actualización hace {{time}}","executiveDashboard":"Panel Ejecutivo","devopsCenter":"Centro de Control DevOps","ctoStrategy":"Centro de Estrategia CTO"},"metrics":{"totalCloudSpend":"Gasto Total en la Nube","budgetUtilization":"Utilización del Presupuesto","savingsRealized":"Ahorros Realizados","efficiencyScore":"Puntuación de Eficiencia","costPerEmployee":"Costo por Empleado","cloudROI":"ROI de la Nube","wasteRatio":"Ratio de Desperdicio","confidence":"Confianza","forecast":"Pronóstico","target":"Objetivo","progressToTarget":"Progreso hacia el objetivo","vsLastMonth":"vs Mes Anterior","vsLastQuarter":"vs Trimestre Anterior","monthToDate":"Del Mes Actual","quarterToDate":"Del Trimestre Actual","yearToDate":"Del Año Actual"},"roles":{"cfo":{"title":"Director Financiero","subtitle":"Liderazgo y Estrategia Financiera","description":"Supervisión financiera estratégica con insights de nivel ejecutivo sobre gastos en la nube, análisis de ROI y gestión presupuestaria en toda la organización."},"devops":{"title":"Ingeniero DevOps","subtitle":"Optimización de Infraestructura","description":"Optimización técnica de costos con insights profundos de infraestructura, recomendaciones de dimensionamiento de recursos y flujos de trabajo automatizados de gestión de costos."},"cto":{"title":"Director de Tecnología","subtitle":"Estrategia Tecnológica y Arquitectura","description":"Liderazgo tecnológico estratégico con modelado de costos arquitectónicos, planificación de hoja de ruta tecnológica y análisis del balance entre innovación y optimización."}},"onboarding":{"welcome":"Bienvenido a CloudOptima","getStarted":"Comenzar","chooseRole":"Elige tu Rol","roleDescription":"Selecciona tu rol principal para personalizar tu experiencia CloudOptima con paneles, insights y permisos específicos del rol adaptados a tus responsabilidades.","connectProviders":"Conecta tus Proveedores de Nube","providersDescription":"Conecta de forma segura tus cuentas de nube para comenzar a monitorear costos en toda tu infraestructura","preferences":"Personaliza tu Experiencia","preferencesDescription":"Configura tus preferencias para aprovechar al máximo CloudOptima","complete":"¡Todo Listo!","setupComplete":"Tu cuenta CloudOptima ha sido configurada exitosamente","launchDashboard":"Lanzar Panel de Control"}}');
+
+/***/ })
+
+}]);

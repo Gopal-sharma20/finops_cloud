@@ -1,0 +1,6 @@
+{
+  "/page": "app/page.js",
+  "/clouds/azure/page": "app/clouds/azure/page.js",
+  "/clouds/aws/page": "app/clouds/aws/page.js",
+  "/finops/phase1/page": "app/finops/phase1/page.js"
+}
