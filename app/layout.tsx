@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { TranslationProvider } from "@/components/i18n/translation-provider"
 import { SkipLinks } from "@/components/accessibility/skip-links"
+import { QueryProvider } from "@/components/providers/query-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -74,11 +75,13 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <SkipLinks />
-        <TranslationProvider>
-          <main id="main-content" tabIndex={-1}>
-            {children}
-          </main>
-        </TranslationProvider>
+        <QueryProvider>
+          <TranslationProvider>
+            <main id="main-content" tabIndex={-1}>
+              {children}
+            </main>
+          </TranslationProvider>
+        </QueryProvider>
       </body>
     </html>
   )

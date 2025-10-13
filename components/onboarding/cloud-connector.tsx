@@ -49,6 +49,7 @@ const cloudProviders: CloudProvider[] = [
     logo: <div className="w-8 h-8 bg-provider-aws rounded flex items-center justify-center text-white font-bold text-sm">AWS</div>,
     description: "Connect your AWS account for comprehensive cost monitoring across all regions and services.",
     requiredFields: [
+      { key: "profileName", label: "Profile Name", type: "text", placeholder: "default", required: true },
       { key: "accessKeyId", label: "Access Key ID", type: "text", required: true },
       { key: "secretAccessKey", label: "Secret Access Key", type: "password", required: true },
       { key: "region", label: "Default Region", type: "text", placeholder: "us-east-1", required: true },
@@ -113,14 +114,40 @@ const CloudConnector: React.FC<CloudConnectorProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
 
-  const handleConnect = async (provider: CloudProvider) => {
+  const testConnection = async (provider: CloudProvider) => {
     setLoading(true)
     setError(null)
 
     try {
-      await onConnect(provider.id, credentials)
-      setCredentials({})
-      setSelectedProvider(null)
+      if (provider.id === "aws") {
+        // Test AWS connection
+        const response = await fetch("/api/aws/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretAccessKey,
+            region: credentials.region || "us-east-1",
+          }),
+        })
+
+        const result = await response.json()
+
+        const isOk = response.ok && (result?.ok === true || result?.via === "mcp");
+        if (!isOk) {
+          throw new Error(result?.error || "Failed to connect to AWS");
+        }
+
+        // Call parent onConnect handler
+        await onConnect(provider.id, credentials)
+        setCredentials({})
+        setSelectedProvider(null)
+      } else {
+        // For other providers, just call the handler
+        await onConnect(provider.id, credentials)
+        setCredentials({})
+        setSelectedProvider(null)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect provider")
     } finally {
@@ -302,13 +329,13 @@ const CloudConnector: React.FC<CloudConnectorProps> = ({
               <Button
                 onClick={() => {
                   const provider = providers.find(p => p.id === selectedProvider)
-                  if (provider) handleConnect(provider)
+                  if (provider) testConnection(provider)
                 }}
                 disabled={loading || !credentials}
                 className="flex-1"
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Test Connection
+                {loading ? "Connecting..." : "Test & Save Connection"}
               </Button>
               <Button
                 variant="outline"
@@ -317,6 +344,7 @@ const CloudConnector: React.FC<CloudConnectorProps> = ({
                   setCredentials({})
                   setError(null)
                 }}
+                disabled={loading}
               >
                 Cancel
               </Button>

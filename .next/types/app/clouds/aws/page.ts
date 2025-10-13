@@ -1,4 +1,4 @@
-// File: D:\Saas-Claude-API\app\clouds\aws\page.tsx
+// File: /root/git/finops-phas1/app/clouds/aws/page.tsx
 import * as entry from '../../../../../app/clouds/aws/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

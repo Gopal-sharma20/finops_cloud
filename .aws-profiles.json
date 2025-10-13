@@ -1,0 +1,9 @@
+[
+  {
+    "name": "default",
+    "region": "us-east-1",
+    "accountId": "428055055471",
+    "createdAt": "2025-10-10T10:27:32.438Z",
+    "encryptedCredentials": "b96cdd05aeaaecad395692b1e62d62b7:39bc92a456a434f352eedf3cd1ffe65b46a4defd1ed69acfe4ec1f83487d3991c239f2d11a8a808ca1b8434c679ab44cd301b93f3261f0cfb39161d092b57cd531ba5d847ce6c4808989721178ca0bee7b8df10226019e0370d5c4d29af0fcecabebf0eca37ddc8f3686ab27db2dd33b"
+  }
+]

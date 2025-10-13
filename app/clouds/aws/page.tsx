@@ -61,17 +61,59 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { useProfileCost } from "@/hooks/useAWSCost"
+import { useProfileAudit } from "@/hooks/useAWSAudit"
+import { useAWSProfile } from "@/hooks/useAWSProfile"
+import { transformCostToServices, transformAuditToRecommendations, generateCostTrends, estimateRegionalCosts, transformRegionalCosts, generateUtilizationData } from "@/lib/aws/transform"
+import { Loader2 } from "lucide-react"
 
-// AWS Regions with timezones
+// AWS Regions with timezones - All AWS regions
 const awsRegions = [
+  // US Regions
   { id: "us-east-1", name: "US East (N. Virginia)", timezone: "UTC-5", resources: 347, cost: 28450 },
+  { id: "us-east-2", name: "US East (Ohio)", timezone: "UTC-5", resources: 156, cost: 12340 },
+  { id: "us-west-1", name: "US West (N. California)", timezone: "UTC-8", resources: 134, cost: 10890 },
   { id: "us-west-2", name: "US West (Oregon)", timezone: "UTC-8", resources: 256, cost: 18920 },
-  { id: "eu-west-1", name: "Europe (Ireland)", timezone: "UTC+0", resources: 189, cost: 15650 },
-  { id: "ap-southeast-1", name: "Asia Pacific (Singapore)", timezone: "UTC+8", resources: 98, cost: 8340 },
-  { id: "ap-northeast-1", name: "Asia Pacific (Tokyo)", timezone: "UTC+9", resources: 76, cost: 6890 },
+
+  // Canada
   { id: "ca-central-1", name: "Canada (Central)", timezone: "UTC-5", resources: 45, cost: 4120 },
+  { id: "ca-west-1", name: "Canada (Calgary)", timezone: "UTC-7", resources: 23, cost: 2180 },
+
+  // Europe
+  { id: "eu-west-1", name: "Europe (Ireland)", timezone: "UTC+0", resources: 189, cost: 15650 },
+  { id: "eu-west-2", name: "Europe (London)", timezone: "UTC+0", resources: 98, cost: 8230 },
+  { id: "eu-west-3", name: "Europe (Paris)", timezone: "UTC+1", resources: 67, cost: 5670 },
   { id: "eu-central-1", name: "Europe (Frankfurt)", timezone: "UTC+1", resources: 67, cost: 5890 },
-  { id: "ap-south-1", name: "Asia Pacific (Mumbai)", timezone: "UTC+5:30", resources: 34, cost: 3240 }
+  { id: "eu-central-2", name: "Europe (Zurich)", timezone: "UTC+1", resources: 34, cost: 3120 },
+  { id: "eu-north-1", name: "Europe (Stockholm)", timezone: "UTC+1", resources: 45, cost: 3890 },
+  { id: "eu-south-1", name: "Europe (Milan)", timezone: "UTC+1", resources: 28, cost: 2340 },
+  { id: "eu-south-2", name: "Europe (Spain)", timezone: "UTC+1", resources: 19, cost: 1560 },
+
+  // Asia Pacific
+  { id: "ap-south-1", name: "Asia Pacific (Mumbai)", timezone: "UTC+5:30", resources: 34, cost: 3240 },
+  { id: "ap-south-2", name: "Asia Pacific (Hyderabad)", timezone: "UTC+5:30", resources: 21, cost: 1890 },
+  { id: "ap-southeast-1", name: "Asia Pacific (Singapore)", timezone: "UTC+8", resources: 98, cost: 8340 },
+  { id: "ap-southeast-2", name: "Asia Pacific (Sydney)", timezone: "UTC+10", resources: 76, cost: 6450 },
+  { id: "ap-southeast-3", name: "Asia Pacific (Jakarta)", timezone: "UTC+7", resources: 34, cost: 2780 },
+  { id: "ap-southeast-4", name: "Asia Pacific (Melbourne)", timezone: "UTC+10", resources: 29, cost: 2340 },
+  { id: "ap-southeast-5", name: "Asia Pacific (Malaysia)", timezone: "UTC+8", resources: 18, cost: 1560 },
+  { id: "ap-northeast-1", name: "Asia Pacific (Tokyo)", timezone: "UTC+9", resources: 76, cost: 6890 },
+  { id: "ap-northeast-2", name: "Asia Pacific (Seoul)", timezone: "UTC+9", resources: 54, cost: 4560 },
+  { id: "ap-northeast-3", name: "Asia Pacific (Osaka)", timezone: "UTC+9", resources: 32, cost: 2780 },
+  { id: "ap-east-1", name: "Asia Pacific (Hong Kong)", timezone: "UTC+8", resources: 43, cost: 3670 },
+
+  // Middle East
+  { id: "me-south-1", name: "Middle East (Bahrain)", timezone: "UTC+3", resources: 23, cost: 2120 },
+  { id: "me-central-1", name: "Middle East (UAE)", timezone: "UTC+4", resources: 31, cost: 2890 },
+
+  // South America
+  { id: "sa-east-1", name: "South America (São Paulo)", timezone: "UTC-3", resources: 56, cost: 4780 },
+
+  // Africa
+  { id: "af-south-1", name: "Africa (Cape Town)", timezone: "UTC+2", resources: 19, cost: 1670 },
+
+  // Israel
+  { id: "il-central-1", name: "Israel (Tel Aviv)", timezone: "UTC+2", resources: 15, cost: 1340 }
 ]
 
 // AWS Services data
@@ -197,11 +239,12 @@ const RegionFilter = ({ regions, selectedRegion, onRegionChange }: {
   </Select>
 )
 
-const TimezoneFilter = ({ selectedTimezone, onTimezoneChange }: {
+const TimezoneFilter = ({ regions, selectedTimezone, onTimezoneChange }: {
+  regions: any[]
   selectedTimezone: string
   onTimezoneChange: (timezone: string) => void
 }) => {
-  const timezones = [...new Set(awsRegions.map(r => r.timezone))]
+  const timezones = [...new Set((regions || []).map(r => r.timezone))]
 
   return (
     <Select value={selectedTimezone} onValueChange={onTimezoneChange}>
@@ -459,22 +502,101 @@ export default function AWSCloudPage() {
   const [selectedTimezone, setSelectedTimezone] = useState("all")
   const [selectedService, setSelectedService] = useState("all")
 
+  // Fetch AWS profile first (lightweight, fast)
+  const { data: profileData } = useAWSProfile("default")
+
+  // Fetch real AWS data
+  const { data: costData, isLoading: costLoading, error: costError, refetch: refetchCost } = useProfileCost("default", 30)
+  const { data: auditData, isLoading: auditLoading, error: auditError, refetch: refetchAudit } = useProfileAudit("default", ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1", "ap-northeast-1"])
+
+  // Display regions and services immediately (even while loading)
+  const displayRegions = useMemo(() => awsRegions, [])
+  const displayServices = useMemo(() => awsServices, [])
+
+  // Transform real data or use fallbacks for actual data
+  const realServices = useMemo(() => {
+    if (costData && !costLoading && !costError) {
+      console.log("✅ Using REAL cost data:", costData)
+      return transformCostToServices(costData)
+    }
+    console.log("⚠️ Using MOCK data - costData:", costData, "loading:", costLoading, "error:", costError)
+    return awsServices
+  }, [costData, costLoading, costError])
+
+  const realRegions = useMemo(() => {
+    if (costData && !costLoading && !costError) {
+      // Check if we have real regional cost data from AWS
+      if (costData.costByRegion && Object.keys(costData.costByRegion).length > 0) {
+        console.log("✅ Using REAL regional cost data:", costData.costByRegion)
+        return transformRegionalCosts(costData.costByRegion, realServices)
+      }
+      // Fallback to estimates if regional data not available
+      console.log("⚠️ Using ESTIMATED regional costs")
+      return estimateRegionalCosts(costData.totalCost || 0, realServices)
+    }
+    return awsRegions
+  }, [costData, costLoading, costError, realServices])
+
+  const realRecommendations = useMemo(() => {
+    if (auditData && !auditLoading && !auditError) {
+      return transformAuditToRecommendations(auditData)
+    }
+    return awsRecommendations
+  }, [auditData, auditLoading, auditError])
+
+  const realCostTrends = useMemo(() => {
+    if (costData && !costLoading && !costError) {
+      return generateCostTrends(costData.totalCost || 0)
+    }
+    return costTrends
+  }, [costData, costLoading, costError])
+
+  const realUtilizationData = useMemo(() => {
+    return generateUtilizationData()
+  }, [])
+
+  // Account ID from profile data (fast) or cost data (fallback)
+  const accountId = profileData?.accountId || costData?.accountId || "Loading..."
+
   // Filter data based on selections
   const filteredRegions = useMemo(() => {
-    let regions = awsRegions
+    let regions = realRegions
+
+    // Filter by selected region
+    if (selectedRegion !== "all") {
+      regions = regions.filter(r => r.id === selectedRegion)
+    }
+
+    // Filter by selected timezone
     if (selectedTimezone !== "all") {
       regions = regions.filter(r => r.timezone === selectedTimezone)
     }
+
     return regions
-  }, [selectedTimezone])
+  }, [selectedRegion, selectedTimezone, realRegions])
 
   const filteredServices = useMemo(() => {
-    return awsServices
-  }, [selectedRegion, selectedService])
+    let services = realServices
+
+    // Filter by selected service
+    if (selectedService !== "all") {
+      services = services.filter(s => s.name === selectedService)
+    }
+
+    return services
+  }, [selectedRegion, selectedService, realServices])
 
   const totalCost = filteredRegions.reduce((sum, region) => sum + region.cost, 0)
   const totalResources = filteredRegions.reduce((sum, region) => sum + region.resources, 0)
-  const totalSavings = awsRecommendations.reduce((sum, rec) => sum + rec.savings, 0)
+  const totalSavings = realRecommendations.reduce((sum, rec) => sum + rec.savings, 0)
+
+  const isLoading = costLoading || auditLoading
+  const hasError = costError || auditError
+
+  const handleRefresh = () => {
+    refetchCost()
+    refetchAudit()
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-background to-orange-50 p-6">
@@ -491,16 +613,21 @@ export default function AWSCloudPage() {
               <Cloud className="h-8 w-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-orange-800 bg-clip-text text-transparent">
-                AWS Cloud Management 🚀
-              </h1>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-orange-800 bg-clip-text text-transparent">
+                  AWS Cloud Management 🚀
+                </h1>
+                <Badge variant="outline" className="text-xs">
+                  Account: {accountId}
+                </Badge>
+              </div>
               <p className="text-muted-foreground">Comprehensive resource discovery and FinOps optimization</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
               Refresh
             </Button>
             <Button variant="outline" size="sm">
@@ -529,12 +656,13 @@ export default function AWSCloudPage() {
                 </div>
 
                 <RegionFilter
-                  regions={awsRegions}
+                  regions={displayRegions}
                   selectedRegion={selectedRegion}
                   onRegionChange={setSelectedRegion}
                 />
 
                 <TimezoneFilter
+                  regions={displayRegions}
                   selectedTimezone={selectedTimezone}
                   onTimezoneChange={setSelectedTimezone}
                 />
@@ -545,7 +673,7 @@ export default function AWSCloudPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Services</SelectItem>
-                    {awsServices.map(service => (
+                    {displayServices.map(service => (
                       <SelectItem key={service.name} value={service.name}>
                         <div className="flex items-center space-x-2">
                           <service.icon className="h-3 w-3" />
@@ -648,7 +776,7 @@ export default function AWSCloudPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <PieChart className="h-5 w-5 text-orange-600" />
+                    <Target className="h-5 w-5 text-orange-600" />
                     <span>Service Cost Distribution 🥧</span>
                   </CardTitle>
                 </CardHeader>
@@ -767,7 +895,7 @@ export default function AWSCloudPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <UtilizationChart data={utilizationData} />
+                <UtilizationChart data={realUtilizationData} />
                 <div className="grid grid-cols-4 gap-4 mt-4">
                   <div className="text-center p-3 bg-orange-50 rounded-lg">
                     <div className="text-sm font-medium text-orange-800">CPU</div>
@@ -800,7 +928,7 @@ export default function AWSCloudPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <CostTrendChart data={costTrends} />
+                <CostTrendChart data={realCostTrends} />
                 <div className="grid grid-cols-3 gap-4 mt-4">
                   <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
                     <div className="text-sm font-medium text-orange-800">Current Spend</div>
@@ -830,7 +958,7 @@ export default function AWSCloudPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {awsRecommendations.map((rec, index) => (
+                  {realRecommendations.map((rec, index) => (
                     <motion.div
                       key={rec.id}
                       initial={{ opacity: 0, y: 20 }}
