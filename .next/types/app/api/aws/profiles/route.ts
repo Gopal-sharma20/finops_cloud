@@ -1,4 +1,4 @@
-// File: /root/git/finops-phas1/app/api/aws/profiles/route.ts
+// File: /root/git/finops_cloud/app/api/aws/profiles/route.ts
 import * as entry from '../../../../../../app/api/aws/profiles/route.js'
 import type { NextRequest } from 'next/server.js'
 

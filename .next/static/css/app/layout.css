@@ -997,6 +997,9 @@ video {
 .w-80 {
   width: 20rem;
 }
+.w-\[180px\] {
+  width: 180px;
+}
 .w-\[200px\] {
   width: 200px;
 }
@@ -2244,6 +2247,9 @@ video {
 .pt-2 {
   padding-top: 0.5rem;
 }
+.pt-6 {
+  padding-top: 1.5rem;
+}
 .text-left {
   text-align: left;
 }
@@ -2934,6 +2940,11 @@ video {
 .hover\:bg-financial-warning-600:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(217 119 6 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-gray-50:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(249 250 251 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:bg-green-100:hover {

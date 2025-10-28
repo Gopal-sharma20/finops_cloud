@@ -1,4 +1,4 @@
-// File: /root/git/finops-phas1/app/layout.tsx
+// File: /root/git/finops_cloud/app/layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

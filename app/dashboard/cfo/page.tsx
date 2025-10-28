@@ -1,10 +1,17 @@
 "use client"
 
-import React from "react"
+import React, { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { CostTrendChart } from "@/components/charts/cost-trend-chart"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   DollarSign,
   Target,
@@ -18,20 +25,21 @@ import {
   Share2,
   Settings,
   Bell,
-  ChevronRight
+  ChevronRight,
+  Calendar,
+  Cloud
 } from "lucide-react"
 import { cn, formatCurrency, formatPercentage } from "@/lib/utils"
-
-// Mock data - replace with real API calls
-const mockCostData = [
-  { date: "2024-01-01", actualCost: 2100000, forecastCost: 2200000, confidenceUpper: 2300000, confidenceLower: 2100000 },
-  { date: "2024-01-02", actualCost: 2150000, forecastCost: 2250000, confidenceUpper: 2350000, confidenceLower: 2150000 },
-  { date: "2024-01-03", actualCost: 2200000, forecastCost: 2300000, confidenceUpper: 2400000, confidenceLower: 2200000 },
-  { date: "2024-01-04", actualCost: 2180000, forecastCost: 2280000, confidenceUpper: 2380000, confidenceLower: 2180000 },
-  { date: "2024-01-05", actualCost: 2250000, forecastCost: 2350000, confidenceUpper: 2450000, confidenceLower: 2250000 },
-  { date: "2024-01-06", actualCost: 2300000, forecastCost: 2400000, confidenceUpper: 2500000, confidenceLower: 2300000 },
-  { date: "2024-01-07", actualCost: 2280000, forecastCost: 2380000, confidenceUpper: 2480000, confidenceLower: 2280000 },
-]
+import { useAzureProfiles } from "@/hooks/useAzureProfile"
+import { useAzureCost } from "@/hooks/useAzureCost"
+import { useAWSProfile } from "@/hooks/useAWSProfile"
+import { useAWSCost } from "@/hooks/useAWSCost"
+import { useGcpCost } from "@/hooks/useGcpCost"
+import { useBudget } from "@/hooks/useBudget"
+import { useCostTrends } from "@/hooks/useCostTrends"
+import { useSavings } from "@/hooks/useSavings"
+import { useEfficiency } from "@/hooks/useEfficiency"
+import { useForecast } from "@/hooks/useForecast"
 
 const mockBusinessEvents = [
   { date: "2024-01-03", label: "Product Launch", type: "milestone" as const },
@@ -75,21 +83,30 @@ const BenchmarkCard: React.FC<{
   </div>
 )
 
-const ScenarioPlanningCard: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-lg">Budget Scenario Planning</CardTitle>
-      <p className="text-sm text-muted-foreground">
-        12-month cost projections under different growth scenarios
-      </p>
-    </CardHeader>
-    <CardContent>
-      <div className="space-y-4">
-        {[
-          { name: "Conservative Growth", probability: 45, cost: 2800000, color: "bg-blue-500" },
-          { name: "Expected Growth", probability: 35, cost: 3200000, color: "bg-green-500" },
-          { name: "Aggressive Growth", probability: 20, cost: 3800000, color: "bg-orange-500" }
-        ].map((scenario, index) => (
+const ScenarioPlanningCard: React.FC<{ currentCost: number; monthlyGrowthRate: number }> = ({
+  currentCost,
+  monthlyGrowthRate
+}) => {
+  const monthlyCost = currentCost * 30 / 7 // Convert 7-day cost to monthly
+  const conservativeCost = monthlyCost * 12 * (1 + monthlyGrowthRate * 0.5 / 100)
+  const expectedCost = monthlyCost * 12 * (1 + monthlyGrowthRate / 100)
+  const aggressiveCost = monthlyCost * 12 * (1 + monthlyGrowthRate * 1.5 / 100)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Budget Scenario Planning</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          12-month cost projections under different growth scenarios
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {[
+            { name: "Conservative Growth", probability: 45, cost: conservativeCost, color: "bg-blue-500" },
+            { name: "Expected Growth", probability: 35, cost: expectedCost, color: "bg-green-500" },
+            { name: "Aggressive Growth", probability: 20, cost: aggressiveCost, color: "bg-orange-500" }
+          ].map((scenario, index) => (
           <div key={index} className="space-y-2">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
@@ -131,54 +148,64 @@ const ScenarioPlanningCard: React.FC = () => (
       </div>
     </CardContent>
   </Card>
-)
+  )
+}
 
-const VendorRiskMatrix: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-lg">Vendor Risk & Performance</CardTitle>
-      <p className="text-sm text-muted-foreground">
-        Cloud provider assessment and recommendations
-      </p>
-    </CardHeader>
-    <CardContent>
-      <div className="space-y-4">
-        {/* Risk Matrix Visualization */}
-        <div className="relative h-48 bg-gradient-to-tr from-green-50 via-yellow-50 to-red-50 border rounded-lg p-4">
-          <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1 p-4">
-            {/* AWS - High Performance, Medium Risk */}
-            <div className="col-start-3 row-start-1 flex items-center justify-center">
-              <div className="bg-provider-aws text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg">
-                AWS
-                <div className="text-[10px] opacity-80">65% spend</div>
-              </div>
+const VendorRiskMatrix: React.FC<{ azurePercentage: number; awsPercentage: number }> = ({ azurePercentage, awsPercentage }) => {
+  const gcpPercentage = 100 - azurePercentage - awsPercentage
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Vendor Risk & Performance</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Cloud provider assessment and recommendations
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Risk Matrix Visualization */}
+          <div className="relative h-48 bg-gradient-to-tr from-green-50 via-yellow-50 to-red-50 border rounded-lg p-4">
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1 p-4">
+              {/* AWS - High Performance, Medium Risk */}
+              {awsPercentage > 0 && (
+                <div className="col-start-3 row-start-1 flex items-center justify-center">
+                  <div className="bg-provider-aws text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg">
+                    AWS
+                    <div className="text-[10px] opacity-80">{awsPercentage.toFixed(0)}% spend</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Azure - Medium Performance, Low Risk */}
+              {azurePercentage > 0 && (
+                <div className="col-start-1 row-start-2 flex items-center justify-center">
+                  <div className="bg-provider-azure text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg">
+                    Azure
+                    <div className="text-[10px] opacity-80">{azurePercentage.toFixed(0)}% spend</div>
+                  </div>
+                </div>
+              )}
+
+              {/* GCP - Low Performance, Low Risk */}
+              {gcpPercentage > 0 && (
+                <div className="col-start-1 row-start-3 flex items-center justify-center">
+                  <div className="bg-provider-gcp text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg">
+                    GCP
+                    <div className="text-[10px] opacity-80">{gcpPercentage.toFixed(0)}% spend</div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Azure - Medium Performance, Low Risk */}
-            <div className="col-start-1 row-start-2 flex items-center justify-center">
-              <div className="bg-provider-azure text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg">
-                Azure
-                <div className="text-[10px] opacity-80">25% spend</div>
-              </div>
+            {/* Axis Labels */}
+            <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 text-xs text-muted-foreground">
+              Low Risk → High Risk
             </div>
-
-            {/* GCP - Low Performance, Low Risk */}
-            <div className="col-start-1 row-start-3 flex items-center justify-center">
-              <div className="bg-provider-gcp text-white px-3 py-2 rounded-lg text-xs font-medium shadow-lg">
-                GCP
-                <div className="text-[10px] opacity-80">10% spend</div>
-              </div>
+            <div className="absolute left-1 top-1/2 transform -translate-y-1/2 -rotate-90 text-xs text-muted-foreground">
+              Low Performance → High Performance
             </div>
           </div>
-
-          {/* Axis Labels */}
-          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 text-xs text-muted-foreground">
-            Low Risk → High Risk
-          </div>
-          <div className="absolute left-1 top-1/2 transform -translate-y-1/2 -rotate-90 text-xs text-muted-foreground">
-            Low Performance → High Performance
-          </div>
-        </div>
 
         {/* Recommendations */}
         <div className="space-y-3">
@@ -216,9 +243,165 @@ const VendorRiskMatrix: React.FC = () => (
       </div>
     </CardContent>
   </Card>
-)
+  )
+}
 
 export default function CFODashboard() {
+  // Get connected providers from onboarding
+  const [connectedProviders, setConnectedProviders] = useState<string[]>([])
+  const [timeRange, setTimeRange] = useState<number>(7)
+
+  // Read connected providers from localStorage on mount
+  React.useEffect(() => {
+    const onboardingData = localStorage.getItem('cloudoptima-onboarding')
+    if (onboardingData) {
+      const data = JSON.parse(onboardingData)
+      setConnectedProviders(data.connectedProviders || [])
+    }
+  }, [])
+
+  // Check which providers are connected
+  const isAzureConnected = connectedProviders.includes('azure')
+  const isAwsConnected = connectedProviders.includes('aws')
+  const isGcpConnected = connectedProviders.includes('gcp')
+
+  // Fetch Azure data - only if connected
+  const { data: azureProfiles } = useAzureProfiles()
+  const { data: azureCostData, isLoading: azureLoading } = useAzureCost({
+    allProfiles: true,
+    timeRangeDays: timeRange,
+    groupBy: "ServiceName"
+  }, isAzureConnected && !!azureProfiles?.profiles?.length)
+
+  // Fetch AWS data - only if connected
+  const { data: awsProfile } = useAWSProfile()
+  const { data: awsCostData, isLoading: awsLoading } = useAWSCost({
+    allProfiles: true,
+    timeRangeDays: timeRange,
+    groupBy: "SERVICE"
+  }, isAwsConnected && !!awsProfile)
+
+  // Fetch GCP data - only if connected
+  const { data: gcpCostData, isLoading: gcpLoading } = useGcpCost({
+    timeRangeDays: timeRange
+  }, isGcpConnected)
+
+  // Fetch new dashboard data
+  const { data: budgetData } = useBudget()
+  const { data: costTrendsData } = useCostTrends(timeRange)
+  const { data: savingsData } = useSavings()
+  const { data: efficiencyData } = useEfficiency()
+  const { data: forecastData } = useForecast(Math.min(timeRange * 4, 90)) // Forecast 4x the historical period, max 90 days
+
+  // Calculate aggregated metrics
+  const metrics = useMemo(() => {
+    let totalAzureCost = 0
+    let totalAWSCost = 0
+    let totalGcpCost = 0
+
+    // Sum Azure costs (only if connected)
+    if (isAzureConnected && azureCostData?.accounts_cost_data) {
+      Object.values(azureCostData.accounts_cost_data).forEach((account: any) => {
+        if (account["Total Cost"]) {
+          totalAzureCost += parseFloat(account["Total Cost"]) || 0
+        }
+      })
+    }
+
+    // Sum AWS costs (only if connected)
+    if (isAwsConnected && awsCostData?.accounts_cost_data) {
+      Object.values(awsCostData.accounts_cost_data).forEach((account: any) => {
+        if (account["Total Cost"]) {
+          totalAWSCost += parseFloat(account["Total Cost"]) || 0
+        }
+      })
+    }
+
+    // Sum GCP costs (only if connected)
+    if (isGcpConnected && gcpCostData?.success && gcpCostData?.data) {
+      // Parse compute instances to estimate cost
+      const computeData = gcpCostData.data.compute?.content?.[0]?.text
+      if (computeData) {
+        try {
+          const instances = JSON.parse(computeData)
+          if (Array.isArray(instances)) {
+            // Daily estimate: $50/month per running instance / 30 days * timeRange
+            const runningInstances = instances.filter((i: any) => i.status === 'RUNNING').length
+            totalGcpCost = (runningInstances * 50 / 30) * timeRange
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+
+    const totalCost = totalAzureCost + totalAWSCost + totalGcpCost
+    const azurePercentage = totalCost > 0 ? (totalAzureCost / totalCost) * 100 : 0
+    const awsPercentage = totalCost > 0 ? (totalAWSCost / totalCost) * 100 : 0
+    const gcpPercentage = totalCost > 0 ? (totalGcpCost / totalCost) * 100 : 0
+
+    return {
+      totalCost,
+      totalAzureCost,
+      totalAWSCost,
+      totalGcpCost,
+      azurePercentage,
+      awsPercentage,
+      gcpPercentage
+    }
+  }, [azureCostData, awsCostData, gcpCostData, isAzureConnected, isAwsConnected, isGcpConnected, timeRange])
+
+  // Generate cost trend data from real data
+  const costTrendData = useMemo(() => {
+    if (!costTrendsData?.success || !forecastData?.success) {
+      return []
+    }
+
+    // Combine historical and forecast data
+    const combined = []
+
+    // Add historical data (sum only connected providers)
+    if (costTrendsData.trends) {
+      costTrendsData.trends.forEach((trend: any) => {
+        let cost = 0
+        if (isAwsConnected) cost += trend.aws || 0
+        if (isAzureConnected) cost += trend.azure || 0
+        if (isGcpConnected) cost += trend.gcp || 0
+
+        combined.push({
+          date: trend.date,
+          actualCost: cost,
+          forecastCost: null,
+          confidenceUpper: null,
+          confidenceLower: null,
+        })
+      })
+    }
+
+    // Add forecast data (sum only connected providers)
+    if (forecastData.forecast) {
+      const forecastDays = Math.min(timeRange, 7) // Show forecast for same duration as historical, max 7 days
+      forecastData.forecast.slice(0, forecastDays).forEach((forecast: any) => {
+        let cost = 0
+        if (isAwsConnected) cost += forecast.breakdown.aws || 0
+        if (isAzureConnected) cost += forecast.breakdown.azure || 0
+        if (isGcpConnected) cost += forecast.breakdown.gcp || 0
+
+        combined.push({
+          date: forecast.date,
+          actualCost: null,
+          forecastCost: cost,
+          confidenceUpper: cost * 1.1,
+          confidenceLower: cost * 0.9,
+        })
+      })
+    }
+
+    return combined
+  }, [costTrendsData, forecastData, isAwsConnected, isAzureConnected, isGcpConnected, timeRange])
+
+  const isLoading = azureLoading || awsLoading || gcpLoading
+
   return (
     <div className="flex-1 space-y-6 p-6 pb-16">
       {/* Header */}
@@ -226,7 +409,7 @@ export default function CFODashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Executive Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Financial overview and strategic insights • Last updated 2 min ago
+            Financial overview and strategic insights • {isLoading ? "Loading..." : "Last updated 2 min ago"}
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -248,14 +431,64 @@ export default function CFODashboard() {
         </div>
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <label className="text-sm font-medium">Time Range:</label>
+                <Select value={timeRange.toString()} onValueChange={(value) => setTimeRange(parseInt(value))}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select time range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Last 24 hours</SelectItem>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="14">Last 14 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="60">Last 60 days</SelectItem>
+                    <SelectItem value="90">Last 90 days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center space-x-2 px-3 py-2 bg-muted/50 rounded-md">
+                <Cloud className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Connected Providers:</span>
+                <div className="flex gap-1">
+                  {isAwsConnected && <span className="px-2 py-1 bg-provider-aws text-white text-xs rounded">AWS</span>}
+                  {isAzureConnected && <span className="px-2 py-1 bg-provider-azure text-white text-xs rounded">Azure</span>}
+                  {isGcpConnected && <span className="px-2 py-1 bg-provider-gcp text-white text-xs rounded">GCP</span>}
+                  {!isAwsConnected && !isAzureConnected && !isGcpConnected && (
+                    <span className="text-xs text-muted-foreground">None</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={() => setTimeRange(7)}>
+                Reset Time Range
+              </Button>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Cloud Spend"
-          value={2470000}
+          value={metrics.totalCost}
           currency="USD"
           change={{ value: 12.3, trend: "down", period: "MTD", isPositive: true }}
-          target={3000000}
+          target={metrics.totalCost * 1.2}
           confidence={94}
           icon={<DollarSign className="h-5 w-5 text-primary" />}
           clickable
@@ -263,7 +496,11 @@ export default function CFODashboard() {
 
         <MetricCard
           title="Budget Utilization"
-          value="87%"
+          value={
+            budgetData?.budgets?.length > 0
+              ? `${Math.round((metrics.totalCost / (budgetData.budgets.find((b: any) => b.provider === "total")?.amount || metrics.totalCost * 1.2)) * 100)}%`
+              : "N/A"
+          }
           change={{ value: 5, trend: "up", period: "MTD", isPositive: true }}
           target={100}
           forecast={96}
@@ -273,11 +510,11 @@ export default function CFODashboard() {
         />
 
         <MetricCard
-          title="Savings Realized"
-          value={847000}
+          title="Savings Potential"
+          value={savingsData?.totalPotentialSavings || 0}
           currency="USD"
           change={{ value: 156, trend: "up", period: "QTD", isPositive: true }}
-          forecast={3200000}
+          forecast={savingsData?.totalPotentialSavings || 0}
           confidence={91}
           icon={<PiggyBank className="h-5 w-5 text-financial-profit-600" />}
           clickable
@@ -285,7 +522,7 @@ export default function CFODashboard() {
 
         <MetricCard
           title="Efficiency Score"
-          value="94"
+          value={efficiencyData?.metrics?.overallScore?.toString() || "N/A"}
           change={{ value: 8, trend: "up", period: "MTD", isPositive: true }}
           target={100}
           confidence={87}
@@ -299,7 +536,7 @@ export default function CFODashboard() {
         {/* Cost Trend Chart - Spans 2 columns */}
         <div className="lg:col-span-2">
           <CostTrendChart
-            data={mockCostData}
+            data={costTrendData}
             forecastPeriod={30}
             confidenceIntervals={true}
             anomalyDetection={true}
@@ -320,20 +557,20 @@ export default function CFODashboard() {
             <CardContent className="space-y-4">
               <BenchmarkCard
                 title="Cost per Employee"
-                value="$1,247"
+                value={formatCurrency(metrics.totalCost / 100)}
                 percentile={78}
                 industry="SaaS"
               />
               <BenchmarkCard
-                title="Cloud ROI"
-                value="324%"
-                percentile={92}
+                title="Resource Utilization"
+                value={`${efficiencyData?.metrics?.resourceUtilization || 0}%`}
+                percentile={efficiencyData?.metrics?.resourceUtilization || 50}
                 industry="SaaS"
               />
               <BenchmarkCard
                 title="Waste Ratio"
-                value="8.3%"
-                percentile={85}
+                value={`${efficiencyData?.metrics?.wasteRatio || 0}%`}
+                percentile={100 - (efficiencyData?.metrics?.wasteRatio || 0)}
                 industry="SaaS"
               />
 
@@ -358,8 +595,11 @@ export default function CFODashboard() {
 
       {/* Strategic Planning Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ScenarioPlanningCard />
-        <VendorRiskMatrix />
+        <ScenarioPlanningCard
+          currentCost={metrics.totalCost}
+          monthlyGrowthRate={forecastData?.monthlyGrowthRate || 0}
+        />
+        <VendorRiskMatrix azurePercentage={metrics.azurePercentage} awsPercentage={metrics.awsPercentage} />
       </div>
 
       {/* Quick Actions */}

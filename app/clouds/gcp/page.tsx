@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -449,6 +449,112 @@ export default function GCPCloudPage() {
   const [selectedTimezone, setSelectedTimezone] = useState("all")
   const [selectedService, setSelectedService] = useState("all")
 
+  // Real data states
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [computeInstances, setComputeInstances] = useState<any[]>([])
+  const [storageBuckets, setStorageBuckets] = useState<any[]>([])
+  const [sqlInstances, setSqlInstances] = useState<any[]>([])
+  const [realRegions, setRealRegions] = useState<any[]>([])
+
+  // Fetch real GCP data
+  useEffect(() => {
+    const fetchGCPData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Get credentials from localStorage
+        const onboardingData = localStorage.getItem('cloudoptima-onboarding')
+        if (!onboardingData) {
+          setError('No GCP credentials found. Please complete onboarding.')
+          setLoading(false)
+          return
+        }
+
+        const data = JSON.parse(onboardingData)
+        const gcpCreds = data.credentials?.gcp
+
+        if (!gcpCreds) {
+          setError('No GCP credentials found. Please complete onboarding.')
+          setLoading(false)
+          return
+        }
+
+        // Call cost API
+        const response = await fetch('/api/gcp/cost', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: gcpCreds.projectId,
+            billingAccountId: gcpCreds.billingAccountId,
+            serviceAccountJson: gcpCreds.serviceAccountJson,
+          }),
+        })
+
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          // Parse compute instances
+          const computeData = result.data.compute?.content?.[0]?.text
+          if (computeData) {
+            try {
+              const instances = JSON.parse(computeData)
+              setComputeInstances(Array.isArray(instances) ? instances : [])
+
+              // Extract unique regions from instances
+              const regions = new Set<string>()
+              instances.forEach((inst: any) => {
+                const zone = inst.zone?.split('/').pop() || ''
+                const region = zone.substring(0, zone.lastIndexOf('-'))
+                if (region) regions.add(region)
+              })
+
+              setRealRegions(Array.from(regions).map(r => ({ id: r, name: r })))
+            } catch (e) {
+              console.error('Failed to parse compute data:', e)
+            }
+          }
+
+          // Parse storage
+          const storageData = result.data.storage?.content?.[0]?.text
+          if (storageData) {
+            try {
+              const buckets = JSON.parse(storageData)
+              setStorageBuckets(Array.isArray(buckets) ? buckets : [])
+            } catch (e) {
+              console.error('Failed to parse storage data:', e)
+            }
+          }
+
+          // Parse SQL
+          const sqlData = result.data.sql?.content?.[0]?.text
+          if (sqlData && !sqlData.includes('STDERR')) {
+            try {
+              const sql = JSON.parse(sqlData)
+              setSqlInstances(Array.isArray(sql) ? sql : [])
+            } catch (e) {
+              console.error('Failed to parse SQL data:', e)
+            }
+          }
+        } else {
+          setError(result.error || 'Failed to fetch GCP data')
+        }
+      } catch (err) {
+        console.error('Error fetching GCP data:', err)
+        setError('Failed to load GCP resources')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchGCPData()
+  }, [])
+
+  // Calculate totals from real data
+  const totalResources = computeInstances.length + storageBuckets.length + sqlInstances.length
+  const runningInstances = computeInstances.filter(i => i.status === 'RUNNING').length
+
   // Filter data based on selections
   const filteredRegions = useMemo(() => {
     let regions = gcpRegions
@@ -459,9 +565,38 @@ export default function GCPCloudPage() {
   }, [selectedTimezone])
 
   const totalCost = filteredRegions.reduce((sum, region) => sum + region.cost, 0)
-  const totalResources = filteredRegions.reduce((sum, region) => sum + region.resources, 0)
   const totalSavings = gcpRecommendations.reduce((sum, rec) => sum + rec.savings, 0)
   const avgUtilization = Math.round(gcpServices.reduce((sum, service) => sum + service.utilization, 0) / gcpServices.length)
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-background to-green-50 p-6 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <RefreshCw className="h-12 w-12 mx-auto mb-4 animate-spin text-green-600" />
+          <h2 className="text-xl font-semibold mb-2">Loading GCP Resources...</h2>
+          <p className="text-muted-foreground">Fetching your compute instances, storage, and more</p>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-background to-green-50 p-6 flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md">
+          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-600" />
+          <h2 className="text-xl font-semibold mb-2">Error Loading GCP Data</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()} className="bg-green-600">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-background to-green-50 p-6">
@@ -579,7 +714,7 @@ export default function GCPCloudPage() {
                 <div>
                   <p className="text-sm text-blue-800 font-medium">Total Resources</p>
                   <p className="text-2xl font-bold text-blue-900">{totalResources}</p>
-                  <p className="text-xs text-blue-600">Across {filteredRegions.length} regions</p>
+                  <p className="text-xs text-blue-600">{runningInstances} running • {computeInstances.length} instances</p>
                 </div>
                 <Server className="h-8 w-8 text-blue-600" />
               </div>
@@ -689,6 +824,56 @@ export default function GCPCloudPage() {
 
           {/* Resources Tab */}
           <TabsContent value="resources" className="space-y-6">
+            {/* Real Compute Instances */}
+            {computeInstances.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Server className="h-5 w-5 text-blue-600" />
+                    <span>Compute Engine Instances ({computeInstances.length})</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {computeInstances.map((instance, idx) => {
+                      const zone = instance.zone?.split('/').pop() || ''
+                      const machineType = instance.machineType?.split('/').pop() || ''
+                      const isRunning = instance.status === 'RUNNING'
+
+                      return (
+                        <div key={instance.id || idx} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3">
+                              <div className={cn(
+                                "h-2 w-2 rounded-full",
+                                isRunning ? "bg-green-500" : "bg-gray-400"
+                              )} />
+                              <div>
+                                <h4 className="font-semibold">{instance.name}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {machineType} • {zone}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant={isRunning ? "default" : "secondary"} className="mb-1">
+                              {instance.status}
+                            </Badge>
+                            {instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP && (
+                              <p className="text-xs text-muted-foreground">
+                                IP: {instance.networkInterfaces[0].accessConfigs[0].natIP}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {gcpServices.map((service, index) => (
                 <motion.div

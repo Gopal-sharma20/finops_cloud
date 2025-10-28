@@ -1,6 +1,9 @@
 {
-  "/not-found": "app/not-found.js",
   "/page": "app/page.js",
   "/onboarding/page": "app/onboarding/page.js",
-  "/clouds/aws/page": "app/clouds/aws/page.js"
+  "/api/gcp/cost/route": "app/api/gcp/cost/route.js",
+  "/api/budget/route": "app/api/budget/route.js",
+  "/api/cost-trends/route": "app/api/cost-trends/route.js",
+  "/api/efficiency/route": "app/api/efficiency/route.js",
+  "/dashboard/cfo/page": "app/dashboard/cfo/page.js"
 }

@@ -142,6 +142,53 @@ const CloudConnector: React.FC<CloudConnectorProps> = ({
         await onConnect(provider.id, credentials)
         setCredentials({})
         setSelectedProvider(null)
+      } else if (provider.id === "azure") {
+        // Test Azure connection
+        const response = await fetch("/api/azure/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tenantId: credentials.tenantId,
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            subscriptionId: credentials.subscriptionId,
+          }),
+        })
+
+        const result = await response.json()
+
+        const isOk = response.ok && (result?.ok === true || result?.via === "rest-api");
+        if (!isOk) {
+          throw new Error(result?.error || "Failed to connect to Azure");
+        }
+
+        // Call parent onConnect handler
+        await onConnect(provider.id, credentials)
+        setCredentials({})
+        setSelectedProvider(null)
+      } else if (provider.id === "gcp") {
+        // Test GCP connection
+        const response = await fetch("/api/gcp/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: credentials.projectId,
+            serviceAccountJson: credentials.serviceAccountKey, // JSON string from file
+            billingAccountId: credentials.billingAccountId,
+          }),
+        })
+
+        const result = await response.json()
+
+        const isOk = response.ok && (result?.ok === true || result?.via === "rest-api");
+        if (!isOk) {
+          throw new Error(result?.error || "Failed to connect to GCP");
+        }
+
+        // Call parent onConnect handler
+        await onConnect(provider.id, credentials)
+        setCredentials({})
+        setSelectedProvider(null)
       } else {
         // For other providers, just call the handler
         await onConnect(provider.id, credentials)
