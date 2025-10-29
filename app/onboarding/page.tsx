@@ -13,19 +13,32 @@ export default function OnboardingPage() {
       localStorage.setItem('cloudoptima-onboarding', JSON.stringify(data))
       localStorage.setItem('cloudoptima-user-role', data.selectedRole)
 
-      // Store AWS profile name if connected
+      // Store cloud provider specific data
       if (data.connectedProviders.includes('aws') && data.credentials.aws) {
         const awsProfileName = data.credentials.aws.profileName || 'default'
         localStorage.setItem('cloudoptima-aws-profile', awsProfileName)
       }
 
+      if (data.connectedProviders.includes('azure') && data.credentials.azure) {
+        localStorage.setItem('cloudoptima-azure-profile', 'default')
+      }
+
+      if (data.connectedProviders.includes('gcp') && data.credentials.gcp) {
+        localStorage.setItem('cloudoptima-gcp-profile', 'default')
+      }
+
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000))
 
-      // Redirect to AWS dashboard if AWS is connected, otherwise role dashboard
+      // Redirect to appropriate cloud dashboard based on connected providers
       if (data.connectedProviders.includes('aws')) {
         router.push('/clouds/aws')
+      } else if (data.connectedProviders.includes('azure')) {
+        router.push('/clouds/azure')
+      } else if (data.connectedProviders.includes('gcp')) {
+        router.push('/clouds/gcp')
       } else {
+        // No cloud provider connected, go to role dashboard
         const dashboardRoute = `/dashboard/${data.selectedRole}`
         router.push(dashboardRoute)
       }

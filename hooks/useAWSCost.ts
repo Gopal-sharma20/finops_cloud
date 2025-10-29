@@ -58,15 +58,21 @@ export function useProfileCost(
   return useQuery({
     queryKey: ["aws-cost", profile, timeRangeDays],
     queryFn: async () => {
+      console.log(`📊 Fetching AWS cost data for profile: ${profile}, days: ${timeRangeDays}`)
       const response = await fetch(
-        `/api/aws/cost?profile=${profile}&timeRangeDays=${timeRangeDays}`
+        `/api/aws/cost?profile=${profile}&timeRangeDays=${timeRangeDays}`,
+        {
+          cache: 'no-store', // Force fresh data on manual refetch
+        }
       );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch cost data: ${response.statusText}`);
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log(`✅ AWS cost data fetched:`, data)
+      return data;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

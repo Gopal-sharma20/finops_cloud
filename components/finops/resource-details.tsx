@@ -331,8 +331,8 @@ export const ResourceDetails = () => {
   const totalSavings = filteredResources.reduce((sum, resource) => sum + resource.potentialSavings, 0)
   const totalSecurityIssues = filteredResources.reduce((sum, resource) => sum + resource.securityIssues, 0)
 
-  const uniqueRegions = [...new Set(resourceInventory.map(r => r.region))]
-  const uniqueTypes = [...new Set(resourceInventory.map(r => r.type))]
+  const uniqueRegions = Array.from(new Set(resourceInventory.map(r => r.region)))
+  const uniqueTypes = Array.from(new Set(resourceInventory.map(r => r.type)))
 
   return (
     <div className="space-y-6">
@@ -366,7 +366,7 @@ export const ResourceDetails = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Monthly Cost</p>
-                  <p className="text-2xl font-bold text-green-600">${totalCost.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-600">${totalCost.toLocaleString('en-US')}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-green-600" />
               </div>
@@ -384,7 +384,7 @@ export const ResourceDetails = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Potential Savings</p>
-                  <p className="text-2xl font-bold text-purple-600">${totalSavings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-purple-600">${totalSavings.toLocaleString('en-US')}</p>
                 </div>
                 <TrendingDown className="h-8 w-8 text-purple-600" />
               </div>

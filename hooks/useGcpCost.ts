@@ -25,6 +25,8 @@ export interface GcpCostResponse {
  * Fetch GCP cost data
  */
 async function fetchGcpCostData(params: GcpCostParams): Promise<GcpCostResponse> {
+  console.log("📊 Fetching GCP cost data with params:", params)
+
   // Get credentials from localStorage if not provided
   let finalParams = { ...params };
 
@@ -51,13 +53,16 @@ async function fetchGcpCostData(params: GcpCostParams): Promise<GcpCostResponse>
       "Content-Type": "application/json",
     },
     body: JSON.stringify(finalParams),
+    cache: 'no-store', // Force fresh data on manual refetch
   });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch GCP cost data: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log("✅ GCP cost data fetched:", data)
+  return data;
 }
 
 /**

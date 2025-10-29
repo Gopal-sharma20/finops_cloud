@@ -117,7 +117,7 @@ export default function AWSLivePage() {
                         Total Cost (30 Days)
                       </p>
                       <p className="text-2xl font-bold text-green-900">
-                        ${costData.totalCost?.toLocaleString() || "0"}
+                        ${costData.totalCost?.toLocaleString('en-US') || "0"}
                       </p>
                       <p className="text-xs text-green-600">
                         {costData.periodStartDate} to {costData.periodEndDate}
@@ -186,7 +186,7 @@ export default function AWSLivePage() {
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-green-600">
-                            ${(cost as number).toLocaleString()}
+                            ${(cost as number).toLocaleString('en-US')}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {(
@@ -349,13 +349,13 @@ export default function AWSLivePage() {
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Limit:</span>
                         <span className="font-semibold">
-                          ${budget.budgetLimit.toLocaleString()}
+                          ${budget.budgetLimit.toLocaleString('en-US')}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Actual:</span>
                         <span className="font-semibold">
-                          ${budget.actualSpend.toLocaleString()}
+                          ${budget.actualSpend.toLocaleString('en-US')}
                         </span>
                       </div>
                       <div className="flex justify-between">

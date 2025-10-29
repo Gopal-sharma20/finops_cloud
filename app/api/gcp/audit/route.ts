@@ -1,26 +1,6 @@
 // app/api/gcp/audit/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-const GCP_REST_URL = process.env.GCP_MCP_SERVER_URL || "http://localhost:3002";
-
-async function callGcpAPI(endpoint: string, args: Record<string, any>) {
-  const res = await fetch(`${GCP_REST_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(args),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `GCP API call failed (${res.status} ${res.statusText}) ${text ? `- ${text}` : ""}`
-    );
-  }
-
-  return res.json();
-}
+import { gcpClient } from "@/lib/mcp";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (serviceAccountJson) mcpArgs.serviceAccountJson = serviceAccountJson;
     if (serviceAccountKeyPath) mcpArgs.serviceAccountKeyPath = serviceAccountKeyPath;
 
-    const data = await callGcpAPI("/api/audit", mcpArgs);
+    const data = await gcpClient.callAPI("/api/audit", mcpArgs);
 
     return NextResponse.json(data);
   } catch (error) {

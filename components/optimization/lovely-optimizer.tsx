@@ -314,7 +314,7 @@ export const LovelyOptimizer = () => {
 
             <div className="text-right">
               <div className="text-3xl font-bold text-green-600 mb-1">
-                ${totalSavings.toLocaleString()}
+                ${totalSavings.toLocaleString('en-US')}
               </div>
               <div className="text-sm text-muted-foreground">potential monthly savings</div>
             </div>
@@ -397,7 +397,7 @@ export const LovelyOptimizer = () => {
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-medium">Monthly Savings Goal</label>
               <span className="text-sm font-semibold text-green-600">
-                ${savingsGoal[0].toLocaleString()}
+                ${savingsGoal[0].toLocaleString('en-US')}
               </span>
             </div>
             <Slider

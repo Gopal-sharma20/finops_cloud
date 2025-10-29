@@ -1,28 +1,6 @@
 // app/api/azure/audit/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-const AZURE_REST_URL = process.env.AZURE_MCP_SERVER_URL || "http://localhost:8000";
-
-async function callAzureAPI(endpoint: string, args: Record<string, any>) {
-  const res = await fetch(`${AZURE_REST_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(args),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Azure API call failed (${res.status} ${res.statusText})${
-        text ? ` - ${text}` : ""
-      }`
-    );
-  }
-
-  return res.json();
-}
+import { azureClient } from "@/lib/mcp";
 
 /**
  * POST /api/azure/audit
@@ -55,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (clientSecret) mcpArgs.client_secret = clientSecret;
     if (subscriptionId) mcpArgs.subscription_id = subscriptionId;
 
-    const apiData = await callAzureAPI("/api/audit", mcpArgs);
+    const apiData = await azureClient.callAPI("/api/audit", mcpArgs);
 
     // Preserve your existing response shape and also return API raw payload.
     return NextResponse.json({

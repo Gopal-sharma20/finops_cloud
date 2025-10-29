@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils"
 const ScreenReaderOnly: React.FC<{
   children: React.ReactNode
   className?: string
-}> = ({ children, className }) => {
+  id?: string
+}> = ({ children, className, id }) => {
   return (
-    <span className={cn("sr-only", className)}>
+    <span className={cn("sr-only", className)} id={id}>
       {children}
     </span>
   )

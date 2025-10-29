@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -57,7 +58,8 @@ import {
   Download,
   RefreshCw,
   Heart,
-  Sparkles
+  Sparkles,
+  LogOut
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -66,6 +68,7 @@ import { useProfileAudit } from "@/hooks/useAWSAudit"
 import { useAWSProfile } from "@/hooks/useAWSProfile"
 import { transformCostToServices, transformAuditToRecommendations, generateCostTrends, estimateRegionalCosts, transformRegionalCosts, generateUtilizationData } from "@/lib/aws/transform"
 import { Loader2 } from "lucide-react"
+import { logout } from "@/lib/auth/logout"
 
 // AWS Regions with timezones - All AWS regions
 const awsRegions = [
@@ -244,7 +247,7 @@ const TimezoneFilter = ({ regions, selectedTimezone, onTimezoneChange }: {
   selectedTimezone: string
   onTimezoneChange: (timezone: string) => void
 }) => {
-  const timezones = [...new Set((regions || []).map(r => r.timezone))]
+  const timezones = Array.from(new Set((regions || []).map(r => r.timezone)))
 
   return (
     <Select value={selectedTimezone} onValueChange={onTimezoneChange}>
@@ -290,7 +293,7 @@ const ServiceDonutChart = ({ data }: { data: typeof awsServices }) => (
               <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-orange-200">
                 <p className="font-medium text-sm">{data.name}</p>
                 <p className="text-xs text-muted-foreground">{data.count} resources</p>
-                <p className="text-xs">Cost: <span className="font-semibold">${data.cost.toLocaleString()}</span></p>
+                <p className="text-xs">Cost: <span className="font-semibold">${data.cost.toLocaleString('en-US')}</span></p>
                 <p className="text-xs">Utilization: <span className="font-semibold">{data.utilization}%</span></p>
               </div>
             )
@@ -379,7 +382,7 @@ const CostTrendChart = ({ data }: { data: typeof costTrends }) => (
                       style={{ backgroundColor: entry.color }}
                     />
                     <span className="capitalize">{entry.dataKey}:</span>
-                    <span className="font-semibold">${entry.value.toLocaleString()}</span>
+                    <span className="font-semibold">${entry.value.toLocaleString('en-US')}</span>
                   </div>
                 ))}
               </div>
@@ -429,6 +432,7 @@ const RecommendationCard = ({ recommendation }: { recommendation: typeof awsReco
   }
 
   const ServiceIcon = serviceIcons[recommendation.service as keyof typeof serviceIcons] || Server
+  const isBestPractice = recommendation.id.toString().startsWith("best-practice")
 
   return (
     <motion.div
@@ -440,7 +444,11 @@ const RecommendationCard = ({ recommendation }: { recommendation: typeof awsReco
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-lg">
+              <div className={cn("p-2 text-white rounded-lg",
+                isBestPractice
+                  ? "bg-gradient-to-br from-blue-400 to-blue-600"
+                  : "bg-gradient-to-br from-orange-400 to-orange-600"
+              )}>
                 <ServiceIcon className="h-4 w-4" />
               </div>
               <div>
@@ -470,27 +478,44 @@ const RecommendationCard = ({ recommendation }: { recommendation: typeof awsReco
             </Badge>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4 text-xs">
-              <div>
-                <span className="text-muted-foreground">Current: </span>
-                <span className="font-semibold">${recommendation.currentCost}/mo</span>
+          {isBestPractice ? (
+            // Best practice recommendations - show effort level instead of costs
+            <div className="flex items-center justify-between">
+              <div className="text-xs">
+                <span className="text-muted-foreground">Effort: </span>
+                <Badge variant="outline" className="text-xs capitalize ml-1">
+                  {recommendation.effort}
+                </Badge>
               </div>
-              <div>
-                <span className="text-muted-foreground">Projected: </span>
-                <span className="font-semibold text-green-600">${recommendation.projectedCost}/mo</span>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Badge className="bg-gradient-to-r from-green-500 to-green-600 text-xs">
-                Save ${recommendation.savings}/mo
-              </Badge>
-              <Button size="sm" className="h-6 px-2 text-xs bg-gradient-to-r from-orange-500 to-orange-600">
-                Apply ✨
+              <Button size="sm" className="h-6 px-3 text-xs bg-gradient-to-r from-blue-500 to-blue-600">
+                <Sparkles className="h-3 w-3 mr-1" />
+                Learn More
               </Button>
             </div>
-          </div>
+          ) : (
+            // Issue-based recommendations - show cost savings
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Current: </span>
+                  <span className="font-semibold">${recommendation.currentCost}/mo</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Projected: </span>
+                  <span className="font-semibold text-green-600">${recommendation.projectedCost}/mo</span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Badge className="bg-gradient-to-r from-green-500 to-green-600 text-xs">
+                  Save ${recommendation.savings}/mo
+                </Badge>
+                <Button size="sm" className="h-6 px-2 text-xs bg-gradient-to-r from-orange-500 to-orange-600">
+                  Apply ✨
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -498,6 +523,7 @@ const RecommendationCard = ({ recommendation }: { recommendation: typeof awsReco
 }
 
 export default function AWSCloudPage() {
+  const router = useRouter()
   const [selectedRegion, setSelectedRegion] = useState("all")
   const [selectedTimezone, setSelectedTimezone] = useState("all")
   const [selectedService, setSelectedService] = useState("all")
@@ -539,10 +565,25 @@ export default function AWSCloudPage() {
 
   const realRecommendations = useMemo(() => {
     if (auditData && !auditLoading && !auditError) {
-      return transformAuditToRecommendations(auditData)
+      // Extract the actual audit report from the API response wrapper
+      const auditReport = auditData.report || auditData.mcp || auditData
+      console.log("🔍 Audit data received:", auditReport)
+      const recommendations = transformAuditToRecommendations(auditReport)
+      console.log(`📋 Transformed ${recommendations.length} recommendations`)
+
+      return recommendations
     }
+
+    if (auditError) {
+      console.error("❌ Audit error:", auditError)
+    }
+
     return awsRecommendations
   }, [auditData, auditLoading, auditError])
+
+  // Check if recommendations are best practices (all have id starting with "best-practice")
+  const areBestPractices = realRecommendations.length > 0 &&
+    realRecommendations.every(rec => rec.id.toString().startsWith("best-practice"))
 
   const realCostTrends = useMemo(() => {
     if (costData && !costLoading && !costError) {
@@ -593,9 +634,22 @@ export default function AWSCloudPage() {
   const isLoading = costLoading || auditLoading
   const hasError = costError || auditError
 
-  const handleRefresh = () => {
-    refetchCost()
-    refetchAudit()
+  const handleRefresh = async () => {
+    console.log("🔄 Refreshing AWS data...")
+    try {
+      await Promise.all([
+        refetchCost(),
+        refetchAudit()
+      ])
+      console.log("✅ Refresh completed")
+    } catch (error) {
+      console.error("❌ Refresh failed:", error)
+    }
+  }
+
+  const handleLogout = () => {
+    logout()
+    router.push("/connect-providers")
   }
 
   return (
@@ -634,9 +688,13 @@ export default function AWSCloudPage() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button className="bg-gradient-to-r from-orange-500 to-orange-600">
+            <Button variant="outline" size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-none hover:from-orange-600 hover:to-orange-700">
               <Settings className="h-4 w-4 mr-2" />
               Configure
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout} className="hover:bg-red-50 hover:text-red-600 hover:border-red-300">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
             </Button>
           </div>
         </motion.div>
@@ -686,7 +744,7 @@ export default function AWSCloudPage() {
 
                 <div className="flex items-center space-x-2 ml-auto">
                   <span className="text-sm text-muted-foreground">
-                    {totalResources} resources • ${totalCost.toLocaleString()} monthly
+                    {totalResources} resources • ${totalCost.toLocaleString('en-US')} monthly
                   </span>
                 </div>
               </div>
@@ -707,7 +765,7 @@ export default function AWSCloudPage() {
                 <div>
                   <p className="text-sm text-orange-800 font-medium">Monthly Spend</p>
                   <p className="text-2xl font-bold text-orange-900">
-                    ${totalCost.toLocaleString()}
+                    ${totalCost.toLocaleString('en-US')}
                   </p>
                   <div className="flex items-center space-x-1 mt-1">
                     <TrendingDown className="h-3 w-3 text-green-600" />
@@ -737,7 +795,7 @@ export default function AWSCloudPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-green-800 font-medium">Potential Savings</p>
-                  <p className="text-2xl font-bold text-green-900">${totalSavings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-900">${totalSavings.toLocaleString('en-US')}</p>
                   <p className="text-xs text-green-600">{awsRecommendations.length} recommendations</p>
                 </div>
                 <Target className="h-8 w-8 text-green-600" />
@@ -789,7 +847,7 @@ export default function AWSCloudPage() {
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: service.color }}
                         />
-                        <span>{service.name}: ${service.cost.toLocaleString()}</span>
+                        <span>{service.name}: ${service.cost.toLocaleString('en-US')}</span>
                       </div>
                     ))}
                   </div>
@@ -821,7 +879,7 @@ export default function AWSCloudPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold text-green-600">${region.cost.toLocaleString()}</div>
+                          <div className="font-semibold text-green-600">${region.cost.toLocaleString('en-US')}</div>
                           <div className="text-xs text-muted-foreground">monthly</div>
                         </div>
                       </motion.div>
@@ -873,7 +931,7 @@ export default function AWSCloudPage() {
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-bold text-green-600">
-                            ${service.cost.toLocaleString()}
+                            ${service.cost.toLocaleString('en-US')}
                           </div>
                           <div className="text-xs text-muted-foreground">monthly cost</div>
                         </div>
@@ -932,7 +990,7 @@ export default function AWSCloudPage() {
                 <div className="grid grid-cols-3 gap-4 mt-4">
                   <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
                     <div className="text-sm font-medium text-orange-800">Current Spend</div>
-                    <div className="text-lg font-bold text-orange-600">${totalCost.toLocaleString()}</div>
+                    <div className="text-lg font-bold text-orange-600">${totalCost.toLocaleString('en-US')}</div>
                   </div>
                   <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
                     <div className="text-sm font-medium text-red-800">Forecasted</div>
@@ -951,24 +1009,82 @@ export default function AWSCloudPage() {
           <TabsContent value="recommendations" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Target className="h-5 w-5 text-purple-600" />
-                  <span>FinOps Recommendations 🎯</span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <Target className="h-5 w-5 text-purple-600" />
+                    <span>FinOps Recommendations 🎯</span>
+                  </CardTitle>
+                  {auditLoading && (
+                    <Badge variant="outline" className="text-xs">
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Loading audit data...
+                    </Badge>
+                  )}
+                  {auditError && (
+                    <Badge variant="destructive" className="text-xs">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Audit failed - showing demo data
+                    </Badge>
+                  )}
+                  {!auditLoading && !auditError && realRecommendations.length > 0 && (
+                    <Badge variant="outline" className={cn("text-xs",
+                      areBestPractices
+                        ? "bg-blue-50 text-blue-700 border-blue-300"
+                        : "bg-orange-50 text-orange-700 border-orange-300"
+                    )}>
+                      {areBestPractices ? (
+                        <>
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Proactive best practices
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {realRecommendations.length} issues found
+                        </>
+                      )}
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {realRecommendations.map((rec, index) => (
-                    <motion.div
-                      key={rec.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <RecommendationCard recommendation={rec} />
-                    </motion.div>
-                  ))}
-                </div>
+                {realRecommendations.length === 0 ? (
+                  <div className="text-center py-12">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-600" />
+                    <h3 className="text-lg font-semibold mb-2">No Recommendations Found</h3>
+                    <p className="text-muted-foreground">
+                      Great job! Your AWS infrastructure appears to be well-optimized.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {areBestPractices && (
+                      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg">
+                        <div className="flex items-start space-x-3">
+                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                          <div>
+                            <h3 className="font-semibold text-blue-900 mb-1">No Critical Issues Detected! 🎉</h3>
+                            <p className="text-sm text-blue-800">
+                              Your AWS infrastructure looks healthy. Here are some proactive recommendations to further optimize your cloud costs and improve efficiency.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-4">
+                      {realRecommendations.map((rec, index) => (
+                        <motion.div
+                          key={rec.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                        >
+                          <RecommendationCard recommendation={rec} />
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

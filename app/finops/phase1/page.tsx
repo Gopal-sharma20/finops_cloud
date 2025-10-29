@@ -176,7 +176,7 @@ const RegionCard = ({ region }: { region: typeof regions[0] }) => (
           </div>
           <div className="flex justify-between items-center">
             <span className="text-xs text-muted-foreground">Monthly Cost</span>
-            <span className="font-semibold text-green-600">${region.cost.toLocaleString()}</span>
+            <span className="font-semibold text-green-600">${region.cost.toLocaleString('en-US')}</span>
           </div>
 
           <div className="w-full bg-muted rounded-full h-1.5 mt-2">
@@ -210,7 +210,7 @@ const ResourceTypeCard = ({ resource }: { resource: typeof resourceTypes[0] }) =
 
         <div className="text-right">
           <div className="text-lg font-bold text-green-600">
-            ${resource.cost.toLocaleString()}
+            ${resource.cost.toLocaleString('en-US')}
           </div>
           <div className="text-xs text-muted-foreground">monthly cost</div>
         </div>
@@ -410,7 +410,7 @@ export default function Phase1Dashboard() {
                 <div>
                   <p className="text-sm text-green-800 font-medium">Current Month</p>
                   <p className="text-2xl font-bold text-green-900">
-                    ${billingData.current.toLocaleString()}
+                    ${billingData.current.toLocaleString('en-US')}
                   </p>
                   <div className="flex items-center space-x-1 mt-1">
                     <TrendingDown className="h-3 w-3 text-green-600" />
@@ -445,7 +445,7 @@ export default function Phase1Dashboard() {
                 <div>
                   <p className="text-sm text-purple-800 font-medium">Potential Savings</p>
                   <p className="text-2xl font-bold text-purple-900">
-                    ${billingData.savingsPotential.toLocaleString()}
+                    ${billingData.savingsPotential.toLocaleString('en-US')}
                   </p>
                   <p className="text-xs text-purple-600">With recommendations</p>
                 </div>
@@ -754,11 +754,11 @@ export default function Phase1Dashboard() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
                       <span>Previous Month</span>
-                      <span className="font-bold">${billingData.previous.toLocaleString()}</span>
+                      <span className="font-bold">${billingData.previous.toLocaleString('en-US')}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
                       <span>Current Month</span>
-                      <span className="font-bold text-green-600">${billingData.current.toLocaleString()}</span>
+                      <span className="font-bold text-green-600">${billingData.current.toLocaleString('en-US')}</span>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">
@@ -781,7 +781,7 @@ export default function Phase1Dashboard() {
                           <div className={cn("w-3 h-3 rounded-full bg-gradient-to-r", service.color)} />
                           <span className="text-sm">{service.type}</span>
                         </div>
-                        <span className="font-semibold">${service.cost.toLocaleString()}</span>
+                        <span className="font-semibold">${service.cost.toLocaleString('en-US')}</span>
                       </div>
                     ))}
                   </div>
@@ -800,7 +800,7 @@ export default function Phase1Dashboard() {
                 <CardContent>
                   <div className="text-center space-y-2">
                     <div className="text-3xl font-bold text-red-600">
-                      ${billingData.forecastWithoutRec.toLocaleString()}
+                      ${billingData.forecastWithoutRec.toLocaleString('en-US')}
                     </div>
                     <p className="text-sm text-muted-foreground">Projected next month</p>
                     <div className="flex items-center justify-center space-x-1">
@@ -818,7 +818,7 @@ export default function Phase1Dashboard() {
                 <CardContent>
                   <div className="text-center space-y-2">
                     <div className="text-3xl font-bold text-green-600">
-                      ${billingData.forecastWithRec.toLocaleString()}
+                      ${billingData.forecastWithRec.toLocaleString('en-US')}
                     </div>
                     <p className="text-sm text-green-700">Projected next month</p>
                     <div className="flex items-center justify-center space-x-1">
@@ -827,7 +827,7 @@ export default function Phase1Dashboard() {
                     </div>
                     <div className="mt-4 p-3 bg-green-100 rounded-lg">
                       <div className="text-lg font-bold text-green-800">
-                        Save ${billingData.savingsPotential.toLocaleString()}/month
+                        Save ${billingData.savingsPotential.toLocaleString('en-US')}/month
                       </div>
                     </div>
                   </div>

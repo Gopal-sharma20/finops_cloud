@@ -1,26 +1,6 @@
 // app/api/azure/cost/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-const AZURE_REST_URL = process.env.AZURE_MCP_SERVER_URL || "http://localhost:8000";
-
-async function callAzureAPI(endpoint: string, args: Record<string, any>) {
-  const res = await fetch(`${AZURE_REST_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(args),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Azure API call failed (${res.status} ${res.statusText}) ${text ? `- ${text}` : ""}`
-    );
-  }
-
-  return res.json();
-}
+import { azureClient } from "@/lib/mcp";
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (clientSecret) mcpArgs.client_secret = clientSecret;
     if (subscriptionId) mcpArgs.subscription_id = subscriptionId;
 
-    const data = await callAzureAPI("/api/cost", mcpArgs);
+    const data = await azureClient.callAPI("/api/cost", mcpArgs);
 
     // Azure REST API returns { accounts_cost_data, errors_for_profiles }
     return NextResponse.json(data);
@@ -93,7 +73,7 @@ export async function GET(request: NextRequest) {
     };
     if (typeof timeRangeDays === "number") baseArgs.time_range_days = timeRangeDays;
 
-    const totalResp = await callAzureAPI("/api/cost", baseArgs);
+    const totalResp = await azureClient.callAPI("/api/cost", baseArgs);
 
     // Extract the per-profile block
     const key = `Subscription: ${profile}`;
@@ -118,7 +98,7 @@ export async function GET(request: NextRequest) {
 
     // 2) Region breakdown (second API call with group_by=ResourceLocation)
     const regionArgs = { ...baseArgs, group_by: "ResourceLocation" };
-    const regionResp = await callAzureAPI("/api/cost", regionArgs);
+    const regionResp = await azureClient.callAPI("/api/cost", regionArgs);
     const regionBlock = regionResp?.accounts_cost_data?.[key];
     const costByRegion = regionBlock?.["Cost By ResourceLocation"] || {};
 

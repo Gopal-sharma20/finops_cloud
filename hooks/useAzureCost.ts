@@ -21,22 +21,61 @@ export interface AzureCostResponse {
 }
 
 /**
+ * Get Azure credentials from localStorage (if available from onboarding)
+ */
+function getAzureCredentials(): { tenantId?: string; clientId?: string; clientSecret?: string; subscriptionId?: string } {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const onboardingData = localStorage.getItem('cloudoptima-onboarding');
+    if (onboardingData) {
+      const data = JSON.parse(onboardingData);
+      const azureCreds = data.credentials?.azure;
+      if (azureCreds) {
+        return {
+          tenantId: azureCreds.tenantId,
+          clientId: azureCreds.clientId,
+          clientSecret: azureCreds.clientSecret,
+          subscriptionId: azureCreds.subscriptionId,
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to read Azure credentials from localStorage:', e);
+  }
+
+  return {};
+}
+
+/**
  * Fetch Azure cost data
  */
 async function fetchCostData(params: AzureCostParams): Promise<AzureCostResponse> {
+  console.log("📊 Fetching Azure cost data with params:", params)
+
+  // Merge stored credentials with params (params take precedence)
+  const storedCreds = getAzureCredentials();
+  const requestBody = {
+    ...storedCreds,
+    ...params,
+  };
+
   const response = await fetch("/api/azure/cost", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(params),
+    body: JSON.stringify(requestBody),
+    cache: 'no-store', // Force fresh data on manual refetch
   });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch cost data: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log("✅ Azure cost data fetched:", data)
+  return data;
 }
 
 /**

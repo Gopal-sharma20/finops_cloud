@@ -3,15 +3,20 @@ import { useQuery } from "@tanstack/react-query";
 /**
  * Fetch cost forecast
  */
-export function useForecast(days: number = 30) {
+export function useForecast(days: number = 30, enabled: boolean = true) {
   return useQuery({
     queryKey: ["forecast", days],
     queryFn: async () => {
-      // Get GCP credentials from localStorage if available
+      console.log(`Fetching forecast for ${days} days`);
+
+      // Get GCP credentials and connected providers from localStorage
       let gcpCredentials = null;
+      let connectedProviders: string[] = [];
+
       const onboardingData = localStorage.getItem('cloudoptima-onboarding');
       if (onboardingData) {
         const data = JSON.parse(onboardingData);
+        connectedProviders = data.connectedProviders || [];
         const gcpCreds = data.credentials?.gcp;
 
         if (gcpCreds) {
@@ -29,15 +34,20 @@ export function useForecast(days: number = 30) {
         body: JSON.stringify({
           days,
           gcpCredentials,
+          connectedProviders,
         }),
       });
 
       if (!response.ok) {
         throw new Error("Failed to fetch cost forecast");
       }
-      return response.json();
+
+      const result = await response.json();
+      console.log(`Forecast fetched:`, result);
+      return result;
     },
-    staleTime: 15 * 60 * 1000, // 15 minutes
+    enabled,
+    staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
   });
 }

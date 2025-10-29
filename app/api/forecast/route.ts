@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     const forecastDays = parseInt(body.days || "30", 10);
     const historicalDays = 14; // Use last 14 days for forecasting
     const gcpCredentials = body.gcpCredentials; // { projectId, serviceAccountJson, billingAccountId }
+    const connectedProviders: string[] = body.connectedProviders || []; // ['aws', 'azure', 'gcp']
 
     // Fetch historical data for the last 14 days
     const historicalData: Array<{
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
       endDate.setHours(23, 59, 59, 999);
 
       try {
-        const costs = await fetchDailyCost(startDate.toISOString(), endDate.toISOString(), gcpCredentials);
+        const costs = await fetchDailyCost(startDate.toISOString(), endDate.toISOString(), gcpCredentials, connectedProviders);
         historicalData.push({
           date: dateStr,
           ...costs,
@@ -176,53 +177,58 @@ export async function POST(request: NextRequest) {
 async function fetchDailyCost(
   startDateIso: string,
   endDateIso: string,
-  gcpCredentials?: any
+  gcpCredentials?: any,
+  connectedProviders: string[] = []
 ): Promise<{ aws: number; azure: number; gcp: number }> {
   const costs = { aws: 0, azure: 0, gcp: 0 };
 
   try {
-    // Fetch Azure cost
-    try {
-      const azureData = await callAPI(AZURE_REST_URL, "/api/cost", {
-        all_profiles: true,
-        start_date_iso: startDateIso,
-        end_date_iso: endDateIso,
-        group_by: "ServiceName",
-      });
-
-      if (azureData?.accounts_cost_data) {
-        Object.values(azureData.accounts_cost_data).forEach((account: any) => {
-          if (account["Total Cost"]) {
-            costs.azure += parseFloat(account["Total Cost"]) || 0;
-          }
+    // Fetch Azure cost - only if connected
+    if (connectedProviders.includes('azure')) {
+      try {
+        const azureData = await callAPI(AZURE_REST_URL, "/api/cost", {
+          all_profiles: true,
+          start_date_iso: startDateIso,
+          end_date_iso: endDateIso,
+          group_by: "ServiceName",
         });
+
+        if (azureData?.accounts_cost_data) {
+          Object.values(azureData.accounts_cost_data).forEach((account: any) => {
+            if (account["Total Cost"]) {
+              costs.azure += parseFloat(account["Total Cost"]) || 0;
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Azure cost fetch failed:", err);
       }
-    } catch (err) {
-      console.error("Azure cost fetch failed:", err);
     }
 
-    // Fetch AWS cost
-    try {
-      const awsData = await callAPI(AWS_REST_URL, "/api/cost", {
-        all_profiles: true,
-        start_date_iso: startDateIso,
-        end_date_iso: endDateIso,
-        group_by: "SERVICE",
-      });
-
-      if (awsData?.accounts_cost_data) {
-        Object.values(awsData.accounts_cost_data).forEach((account: any) => {
-          if (account["Total Cost"]) {
-            costs.aws += parseFloat(account["Total Cost"]) || 0;
-          }
+    // Fetch AWS cost - only if connected
+    if (connectedProviders.includes('aws')) {
+      try {
+        const awsData = await callAPI(AWS_REST_URL, "/api/cost", {
+          all_profiles: true,
+          start_date_iso: startDateIso,
+          end_date_iso: endDateIso,
+          group_by: "SERVICE",
         });
+
+        if (awsData?.accounts_cost_data) {
+          Object.values(awsData.accounts_cost_data).forEach((account: any) => {
+            if (account["Total Cost"]) {
+              costs.aws += parseFloat(account["Total Cost"]) || 0;
+            }
+          });
+        }
+      } catch (err) {
+        console.error("AWS cost fetch failed:", err);
       }
-    } catch (err) {
-      console.error("AWS cost fetch failed:", err);
     }
 
-    // Fetch GCP cost (daily estimate) - only if credentials provided
-    if (gcpCredentials?.projectId) {
+    // Fetch GCP cost - only if connected and credentials provided
+    if (connectedProviders.includes('gcp') && gcpCredentials?.projectId) {
       try {
         const gcpData = await callAPI(GCP_REST_URL, "/api/cost", {
           projectId: gcpCredentials.projectId,

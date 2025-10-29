@@ -201,8 +201,7 @@ const TimezoneFilter = ({ selectedTimezone, onTimezoneChange }: {
   selectedTimezone: string
   onTimezoneChange: (timezone: string) => void
 }) => {
-  const timezones = [...new Set(awsRegions.map(r => r.timezone))]
-//  const timezones = Array.from(new Set(awsRegions.map(r => r.timezone)))
+  const timezones = Array.from(new Set(awsRegions.map(r => r.timezone)))
 
   return (
     <Select value={selectedTimezone} onValueChange={onTimezoneChange}>
@@ -248,7 +247,7 @@ const ServiceDonutChart = ({ data }: { data: typeof awsServices }) => (
               <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-orange-200">
                 <p className="font-medium text-sm">{data.name}</p>
                 <p className="text-xs text-muted-foreground">{data.count} resources</p>
-                <p className="text-xs">Cost: <span className="font-semibold">${data.cost.toLocaleString()}</span></p>
+                <p className="text-xs">Cost: <span className="font-semibold">${data.cost.toLocaleString('en-US')}</span></p>
                 <p className="text-xs">Utilization: <span className="font-semibold">{data.utilization}%</span></p>
               </div>
             )
@@ -337,7 +336,7 @@ const CostTrendChart = ({ data }: { data: typeof costTrends }) => (
                       style={{ backgroundColor: entry.color }}
                     />
                     <span className="capitalize">{entry.dataKey}:</span>
-                    <span className="font-semibold">${entry.value.toLocaleString()}</span>
+                    <span className="font-semibold">${entry.value.toLocaleString('en-US')}</span>
                   </div>
                 ))}
               </div>
@@ -559,7 +558,7 @@ export default function AWSCloudPage() {
 
                 <div className="flex items-center space-x-2 ml-auto">
                   <span className="text-sm text-muted-foreground">
-                    {totalResources} resources • ${totalCost.toLocaleString()} monthly
+                    {totalResources} resources • ${totalCost.toLocaleString('en-US')} monthly
                   </span>
                 </div>
               </div>
@@ -580,7 +579,7 @@ export default function AWSCloudPage() {
                 <div>
                   <p className="text-sm text-orange-800 font-medium">Monthly Spend</p>
                   <p className="text-2xl font-bold text-orange-900">
-                    ${totalCost.toLocaleString()}
+                    ${totalCost.toLocaleString('en-US')}
                   </p>
                   <div className="flex items-center space-x-1 mt-1">
                     <TrendingDown className="h-3 w-3 text-green-600" />
@@ -610,7 +609,7 @@ export default function AWSCloudPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-green-800 font-medium">Potential Savings</p>
-                  <p className="text-2xl font-bold text-green-900">${totalSavings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-900">${totalSavings.toLocaleString('en-US')}</p>
                   <p className="text-xs text-green-600">{awsRecommendations.length} recommendations</p>
                 </div>
                 <Target className="h-8 w-8 text-green-600" />
@@ -662,7 +661,7 @@ export default function AWSCloudPage() {
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: service.color }}
                         />
-                        <span>{service.name}: ${service.cost.toLocaleString()}</span>
+                        <span>{service.name}: ${service.cost.toLocaleString('en-US')}</span>
                       </div>
                     ))}
                   </div>
@@ -694,7 +693,7 @@ export default function AWSCloudPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold text-green-600">${region.cost.toLocaleString()}</div>
+                          <div className="font-semibold text-green-600">${region.cost.toLocaleString('en-US')}</div>
                           <div className="text-xs text-muted-foreground">monthly</div>
                         </div>
                       </motion.div>
@@ -746,7 +745,7 @@ export default function AWSCloudPage() {
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-bold text-green-600">
-                            ${service.cost.toLocaleString()}
+                            ${service.cost.toLocaleString('en-US')}
                           </div>
                           <div className="text-xs text-muted-foreground">monthly cost</div>
                         </div>
@@ -805,7 +804,7 @@ export default function AWSCloudPage() {
                 <div className="grid grid-cols-3 gap-4 mt-4">
                   <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
                     <div className="text-sm font-medium text-orange-800">Current Spend</div>
-                    <div className="text-lg font-bold text-orange-600">${totalCost.toLocaleString()}</div>
+                    <div className="text-lg font-bold text-orange-600">${totalCost.toLocaleString('en-US')}</div>
                   </div>
                   <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
                     <div className="text-sm font-medium text-red-800">Forecasted</div>

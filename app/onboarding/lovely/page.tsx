@@ -256,7 +256,7 @@ const ProfileStep = ({ onProfileUpdate }: { onProfileUpdate: (data: any) => void
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>$100</span>
-              <span className="font-medium">${profile.monthlySpend[0].toLocaleString()}</span>
+              <span className="font-medium">${profile.monthlySpend[0].toLocaleString('en-US')}</span>
               <span>$50,000+</span>
             </div>
           </div>

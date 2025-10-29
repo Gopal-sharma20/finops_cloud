@@ -2,8 +2,7 @@
  * Transform AWS API responses to match UI component data structures
  */
 
-import { CostData } from "./cost-explorer";
-import { AuditReport } from "./audit";
+import { CostData, AuditReport } from "./types";
 import {
   Server,
   Database,
@@ -70,12 +69,103 @@ export function transformCostToServices(costData: CostData) {
 /**
  * Transform audit data to recommendations
  */
-export function transformAuditToRecommendations(auditData: AuditReport) {
+export function transformAuditToRecommendations(auditData: any) {
+  console.log("🔍 Transforming audit data:", JSON.stringify(auditData, null, 2));
   const recommendations = [];
 
+  // Handle MCP server response format
+  let parsedData: any = null;
+
+  // Check if this is wrapped in MCP format
+  if (auditData && typeof auditData === 'object') {
+    // Try to extract from "Audit Report" wrapper
+    if (auditData["Audit Report"]) {
+      const auditReport = auditData["Audit Report"];
+      console.log("📦 Found 'Audit Report' wrapper, keys:", Object.keys(auditReport));
+
+      // Get the first profile's data (key looks like "Profile Name: default")
+      const profileKey = Object.keys(auditReport).find(key => key !== "Error processing profiles");
+      if (profileKey) {
+        console.log("🔑 Using profile key:", profileKey);
+        const profileData = auditReport[profileKey];
+
+        // MCP returns array with single object
+        if (Array.isArray(profileData) && profileData.length > 0) {
+          const rawData = profileData[0];
+          console.log("📋 Raw profile data:", rawData);
+
+          // Convert MCP field names to our format
+          parsedData = {
+            accountId: rawData["AWS Account"],
+            stoppedEC2Instances: rawData["Stopped EC2 Instances"] || [],
+            unattachedEBSVolumes: rawData["Unattached EBS Volumes"] || [],
+            unassociatedEIPs: rawData["Un-associated EIPs"] || [],
+            budgetStatus: rawData["Budget Status"] || [],
+          };
+        }
+      }
+    }
+    // Try direct fields (camelCase format)
+    else if (auditData.stoppedEC2Instances || auditData.unattachedEBSVolumes || auditData.unassociatedEIPs) {
+      parsedData = auditData as AuditReport;
+    }
+    // Try nested report/mcp field
+    else if (auditData.report || auditData.mcp) {
+      const nested = auditData.report || auditData.mcp;
+      if (nested["Audit Report"]) {
+        const auditReport = nested["Audit Report"];
+        const profileKey = Object.keys(auditReport).find(key => key !== "Error processing profiles");
+        if (profileKey) {
+          const profileData = auditReport[profileKey];
+          if (Array.isArray(profileData) && profileData.length > 0) {
+            const rawData = profileData[0];
+            parsedData = {
+              accountId: rawData["AWS Account"],
+              stoppedEC2Instances: rawData["Stopped EC2 Instances"] || [],
+              unattachedEBSVolumes: rawData["Unattached EBS Volumes"] || [],
+              unassociatedEIPs: rawData["Un-associated EIPs"] || [],
+              budgetStatus: rawData["Budget Status"] || [],
+            };
+          }
+        }
+      }
+    }
+  }
+
+  if (!parsedData) {
+    console.warn("⚠️ Could not parse audit data, returning empty recommendations");
+    return [];
+  }
+
+  // Handle case where fields might be empty objects {} instead of arrays
+  const stoppedInstances = Array.isArray(parsedData.stoppedEC2Instances)
+    ? parsedData.stoppedEC2Instances
+    : (parsedData.stoppedEC2Instances && Object.keys(parsedData.stoppedEC2Instances).length > 0
+      ? Object.values(parsedData.stoppedEC2Instances)
+      : []);
+
+  const unattachedVolumes = Array.isArray(parsedData.unattachedEBSVolumes)
+    ? parsedData.unattachedEBSVolumes
+    : (parsedData.unattachedEBSVolumes && Object.keys(parsedData.unattachedEBSVolumes).length > 0
+      ? Object.values(parsedData.unattachedEBSVolumes)
+      : []);
+
+  const unassociatedIPs = Array.isArray(parsedData.unassociatedEIPs)
+    ? parsedData.unassociatedEIPs
+    : (parsedData.unassociatedEIPs && Object.keys(parsedData.unassociatedEIPs).length > 0
+      ? Object.values(parsedData.unassociatedEIPs)
+      : []);
+
+  console.log("✅ Parsed audit data:", {
+    stoppedInstances: stoppedInstances.length,
+    unattachedVolumes: unattachedVolumes.length,
+    unassociatedIPs: unassociatedIPs.length,
+  });
+
   // Stopped EC2 instances
-  if (auditData.stoppedEC2Instances && auditData.stoppedEC2Instances.length > 0) {
-    for (const instance of auditData.stoppedEC2Instances.slice(0, 5)) {
+  if (stoppedInstances.length > 0) {
+    console.log(`📊 Processing ${stoppedInstances.length} stopped EC2 instances`);
+    for (const instance of stoppedInstances.slice(0, 5)) {
       // Estimate cost savings (EBS storage cost)
       const estimatedSavings = 50; // Rough estimate per stopped instance
 
@@ -98,8 +188,9 @@ export function transformAuditToRecommendations(auditData: AuditReport) {
   }
 
   // Unattached EBS volumes
-  if (auditData.unattachedEBSVolumes && auditData.unattachedEBSVolumes.length > 0) {
-    for (const volume of auditData.unattachedEBSVolumes.slice(0, 5)) {
+  if (unattachedVolumes.length > 0) {
+    console.log(`💾 Processing ${unattachedVolumes.length} unattached EBS volumes`);
+    for (const volume of unattachedVolumes.slice(0, 5)) {
       // Calculate actual cost based on volume size and type
       const costPerGBMonth = volume.volumeType.includes("gp") ? 0.1 : 0.125;
       const monthlyCost = volume.size * costPerGBMonth;
@@ -123,8 +214,9 @@ export function transformAuditToRecommendations(auditData: AuditReport) {
   }
 
   // Unassociated Elastic IPs
-  if (auditData.unassociatedEIPs && auditData.unassociatedEIPs.length > 0) {
-    for (const eip of auditData.unassociatedEIPs.slice(0, 5)) {
+  if (unassociatedIPs.length > 0) {
+    console.log(`🌐 Processing ${unassociatedIPs.length} unassociated Elastic IPs`);
+    for (const eip of unassociatedIPs.slice(0, 5)) {
       // EIP costs $0.005/hour when not associated = ~$3.65/month
       const monthlyCost = 3.65;
 
@@ -144,6 +236,108 @@ export function transformAuditToRecommendations(auditData: AuditReport) {
         timeline: "Immediate",
       });
     }
+  }
+
+  console.log(`✨ Generated ${recommendations.length} total recommendations`);
+
+  // If no issues found, add proactive best practice recommendations
+  if (recommendations.length === 0) {
+    console.log("💡 No issues found, adding proactive best practice recommendations");
+
+    recommendations.push(
+      {
+        id: "best-practice-1",
+        title: "Consider Reserved Instances for Steady Workloads",
+        service: "EC2",
+        region: "All Regions",
+        description: "Analyze your EC2 usage patterns. If you have instances running 24/7, Reserved Instances can save up to 72% compared to On-Demand pricing.",
+        impact: "high" as const,
+        effort: "low" as const,
+        currentCost: 0,
+        projectedCost: 0,
+        savings: 0,
+        confidence: 85,
+        resources: [],
+        timeline: "This month",
+      },
+      {
+        id: "best-practice-2",
+        title: "Enable AWS Cost Anomaly Detection",
+        service: "Cost Management",
+        region: "Global",
+        description: "Set up AWS Cost Anomaly Detection to automatically identify unusual spending patterns and receive alerts before costs escalate.",
+        impact: "medium" as const,
+        effort: "low" as const,
+        currentCost: 0,
+        projectedCost: 0,
+        savings: 0,
+        confidence: 90,
+        resources: [],
+        timeline: "This week",
+      },
+      {
+        id: "best-practice-3",
+        title: "Review and Tag Untagged Resources",
+        service: "All Services",
+        region: "All Regions",
+        description: "Implement a comprehensive tagging strategy to track costs by team, project, or environment. This enables better cost allocation and accountability.",
+        impact: "medium" as const,
+        effort: "medium" as const,
+        currentCost: 0,
+        projectedCost: 0,
+        savings: 0,
+        confidence: 80,
+        resources: [],
+        timeline: "Next week",
+      },
+      {
+        id: "best-practice-4",
+        title: "Implement S3 Lifecycle Policies",
+        service: "S3",
+        region: "All Regions",
+        description: "Automatically transition infrequently accessed objects to cheaper storage classes (S3-IA, Glacier) to reduce storage costs by up to 90%.",
+        impact: "high" as const,
+        effort: "low" as const,
+        currentCost: 0,
+        projectedCost: 0,
+        savings: 0,
+        confidence: 88,
+        resources: [],
+        timeline: "This week",
+      },
+      {
+        id: "best-practice-5",
+        title: "Enable AWS Compute Optimizer",
+        service: "Cost Optimization",
+        region: "Global",
+        description: "Use AWS Compute Optimizer to get machine learning-powered recommendations for optimal EC2 instance types, EBS volumes, and Lambda functions.",
+        impact: "medium" as const,
+        effort: "low" as const,
+        currentCost: 0,
+        projectedCost: 0,
+        savings: 0,
+        confidence: 92,
+        resources: [],
+        timeline: "Immediate",
+      },
+      {
+        id: "best-practice-6",
+        title: "Review CloudWatch Logs Retention",
+        service: "CloudWatch",
+        region: "All Regions",
+        description: "Audit your CloudWatch Logs retention policies. Reduce retention periods for non-critical logs or export to S3 for long-term storage at lower cost.",
+        impact: "low" as const,
+        effort: "low" as const,
+        currentCost: 0,
+        projectedCost: 0,
+        savings: 0,
+        confidence: 85,
+        resources: [],
+        timeline: "Next week",
+      }
+    );
+
+    console.log(`✅ Added ${recommendations.length} proactive recommendations`);
   }
 
   return recommendations;

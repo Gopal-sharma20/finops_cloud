@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -64,10 +65,13 @@ import {
   Brain,
   Container,
   Code,
-  Workflow
+  Workflow,
+  LogOut
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { useGcpCost } from "@/hooks/useGcpCost"
+import { logout } from "@/lib/auth/logout"
 
 // GCP Regions with timezones
 const gcpRegions = [
@@ -248,7 +252,7 @@ const GCPServiceDonutChart = ({ data }: { data: typeof gcpServices }) => (
               <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-green-200">
                 <p className="font-medium text-sm">{data.name}</p>
                 <p className="text-xs text-muted-foreground">{data.count} resources</p>
-                <p className="text-xs">Cost: <span className="font-semibold">${data.cost.toLocaleString()}</span></p>
+                <p className="text-xs">Cost: <span className="font-semibold">${data.cost.toLocaleString('en-US')}</span></p>
                 <p className="text-xs">Utilization: <span className="font-semibold">{data.utilization}%</span></p>
               </div>
             )
@@ -445,150 +449,199 @@ const GCPRecommendationCard = ({ recommendation }: { recommendation: typeof gcpR
 }
 
 export default function GCPCloudPage() {
+  const router = useRouter()
   const [selectedRegion, setSelectedRegion] = useState("all")
   const [selectedTimezone, setSelectedTimezone] = useState("all")
   const [selectedService, setSelectedService] = useState("all")
+  const [timeRange, setTimeRange] = useState<number>(7)
 
-  // Real data states
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [computeInstances, setComputeInstances] = useState<any[]>([])
-  const [storageBuckets, setStorageBuckets] = useState<any[]>([])
-  const [sqlInstances, setSqlInstances] = useState<any[]>([])
-  const [realRegions, setRealRegions] = useState<any[]>([])
+  // Fetch real GCP data using the hook
+  const { data: gcpCostData, isLoading, error: gcpError, refetch: refetchCost } = useGcpCost({
+    timeRangeDays: timeRange
+  }, true)
 
-  // Fetch real GCP data
-  useEffect(() => {
-    const fetchGCPData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+  const handleRefresh = async () => {
+    console.log("🔄 Refreshing GCP data...")
+    try {
+      await refetchCost()
+      console.log("✅ Refresh completed")
+    } catch (error) {
+      console.error("❌ Refresh failed:", error)
+    }
+  }
 
-        // Get credentials from localStorage
-        const onboardingData = localStorage.getItem('cloudoptima-onboarding')
-        if (!onboardingData) {
-          setError('No GCP credentials found. Please complete onboarding.')
-          setLoading(false)
-          return
-        }
+  const handleLogout = () => {
+    logout()
+    router.push("/connect-providers")
+  }
 
-        const data = JSON.parse(onboardingData)
-        const gcpCreds = data.credentials?.gcp
+  // Parse real data from the API response
+  const realData = useMemo(() => {
+    let computeInstances: any[] = []
+    let storageBuckets: any[] = []
+    let sqlInstances: any[] = []
+    let realRegions: any[] = []
 
-        if (!gcpCreds) {
-          setError('No GCP credentials found. Please complete onboarding.')
-          setLoading(false)
-          return
-        }
+    if (gcpCostData?.success && gcpCostData.data) {
+      // Parse compute instances
+      const computeData = gcpCostData.data.compute?.content?.[0]?.text
+      if (computeData) {
+        try {
+          const instances = JSON.parse(computeData)
+          if (Array.isArray(instances)) {
+            computeInstances = instances
 
-        // Call cost API
-        const response = await fetch('/api/gcp/cost', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectId: gcpCreds.projectId,
-            billingAccountId: gcpCreds.billingAccountId,
-            serviceAccountJson: gcpCreds.serviceAccountJson,
-          }),
-        })
+            // Extract unique regions from instances
+            const regions = new Set<string>()
+            instances.forEach((inst: any) => {
+              const zone = inst.zone?.split('/').pop() || ''
+              const region = zone.substring(0, zone.lastIndexOf('-'))
+              if (region) regions.add(region)
+            })
 
-        const result = await response.json()
-
-        if (result.success && result.data) {
-          // Parse compute instances
-          const computeData = result.data.compute?.content?.[0]?.text
-          if (computeData) {
-            try {
-              const instances = JSON.parse(computeData)
-              setComputeInstances(Array.isArray(instances) ? instances : [])
-
-              // Extract unique regions from instances
-              const regions = new Set<string>()
-              instances.forEach((inst: any) => {
-                const zone = inst.zone?.split('/').pop() || ''
-                const region = zone.substring(0, zone.lastIndexOf('-'))
-                if (region) regions.add(region)
-              })
-
-              setRealRegions(Array.from(regions).map(r => ({ id: r, name: r })))
-            } catch (e) {
-              console.error('Failed to parse compute data:', e)
-            }
+            realRegions = Array.from(regions).map(r => ({ id: r, name: r }))
           }
-
-          // Parse storage
-          const storageData = result.data.storage?.content?.[0]?.text
-          if (storageData) {
-            try {
-              const buckets = JSON.parse(storageData)
-              setStorageBuckets(Array.isArray(buckets) ? buckets : [])
-            } catch (e) {
-              console.error('Failed to parse storage data:', e)
-            }
-          }
-
-          // Parse SQL
-          const sqlData = result.data.sql?.content?.[0]?.text
-          if (sqlData && !sqlData.includes('STDERR')) {
-            try {
-              const sql = JSON.parse(sqlData)
-              setSqlInstances(Array.isArray(sql) ? sql : [])
-            } catch (e) {
-              console.error('Failed to parse SQL data:', e)
-            }
-          }
-        } else {
-          setError(result.error || 'Failed to fetch GCP data')
+        } catch (e) {
+          console.error('Failed to parse compute data:', e)
         }
-      } catch (err) {
-        console.error('Error fetching GCP data:', err)
-        setError('Failed to load GCP resources')
-      } finally {
-        setLoading(false)
+      }
+
+      // Parse storage
+      const storageData = gcpCostData.data.storage?.content?.[0]?.text
+      if (storageData) {
+        try {
+          const buckets = JSON.parse(storageData)
+          if (Array.isArray(buckets)) {
+            storageBuckets = buckets
+          }
+        } catch (e) {
+          console.error('Failed to parse storage data:', e)
+        }
+      }
+
+      // Parse SQL
+      const sqlData = gcpCostData.data.sql?.content?.[0]?.text
+      if (sqlData && !sqlData.includes('STDERR')) {
+        try {
+          const sql = JSON.parse(sqlData)
+          if (Array.isArray(sql)) {
+            sqlInstances = sql
+          }
+        } catch (e) {
+          console.error('Failed to parse SQL data:', e)
+        }
       }
     }
 
-    fetchGCPData()
-  }, [])
+    return { computeInstances, storageBuckets, sqlInstances, realRegions }
+  }, [gcpCostData])
 
   // Calculate totals from real data
-  const totalResources = computeInstances.length + storageBuckets.length + sqlInstances.length
-  const runningInstances = computeInstances.filter(i => i.status === 'RUNNING').length
+  const totalResources = realData.computeInstances.length + realData.storageBuckets.length + realData.sqlInstances.length
+  const runningInstances = realData.computeInstances.filter(i => i.status === 'RUNNING').length
+  const hasRealData = totalResources > 0
 
-  // Filter data based on selections
+  // Create dynamic services array from real data
+  const dynamicGcpServices = useMemo(() => {
+    if (!hasRealData) return gcpServices // Fallback to mock if no real data
+
+    // Estimate costs based on time range (in production, this would come from billing API)
+    // Monthly costs: $50/instance, $20/bucket, $150/SQL - scale by timeRange
+    const costMultiplier = timeRange / 30 // Scale from monthly to selected period
+    const computeCost = runningInstances * 50 * costMultiplier
+    const storageCost = realData.storageBuckets.length * 20 * costMultiplier
+    const sqlCost = realData.sqlInstances.length * 150 * costMultiplier
+
+    console.log('💰 [GCP] Cost calculation:', {
+      timeRange,
+      costMultiplier,
+      runningInstances,
+      storageBuckets: realData.storageBuckets.length,
+      sqlInstances: realData.sqlInstances.length,
+      computeCost,
+      storageCost,
+      sqlCost,
+      totalCost: computeCost + storageCost + sqlCost
+    })
+
+    return [
+      {
+        name: "Compute Engine",
+        count: realData.computeInstances.length,
+        cost: computeCost,
+        utilization: runningInstances > 0 ? Math.round((runningInstances / realData.computeInstances.length) * 100) : 0,
+        color: "#4285F4",
+        icon: Server
+      },
+      {
+        name: "Cloud Storage",
+        count: realData.storageBuckets.length,
+        cost: storageCost,
+        utilization: realData.storageBuckets.length > 0 ? 85 : 0,
+        color: "#34A853",
+        icon: HardDrive
+      },
+      {
+        name: "Cloud SQL",
+        count: realData.sqlInstances.length,
+        cost: sqlCost,
+        utilization: realData.sqlInstances.length > 0 ? 82 : 0,
+        color: "#FBBC04",
+        icon: Database
+      }
+    ].filter(s => s.count > 0) // Only show services with resources
+  }, [realData, hasRealData, runningInstances, timeRange])
+
+  // Create dynamic regions array from real data
+  const dynamicGcpRegions = useMemo(() => {
+    if (!hasRealData || realData.realRegions.length === 0) return gcpRegions // Fallback to mock
+
+    const costMultiplier = timeRange / 30 // Scale from monthly to selected period
+
+    return realData.realRegions.map(region => {
+      // Count resources in this region
+      const regionResources = realData.computeInstances.filter(i => {
+        const zone = i.zone?.split('/').pop() || ''
+        return zone.startsWith(region.id)
+      }).length
+
+      // Estimate cost based on resources and time range
+      const estimatedCost = regionResources * 50 * costMultiplier
+
+      return {
+        id: region.id,
+        name: region.name,
+        timezone: "UTC", // Would need region metadata for accurate timezone
+        resources: regionResources,
+        cost: estimatedCost,
+        location: region.name
+      }
+    })
+  }, [realData, hasRealData, timeRange])
+
+  // Filter data based on selections - use dynamic data if available
   const filteredRegions = useMemo(() => {
-    let regions = gcpRegions
+    let regions = hasRealData ? dynamicGcpRegions : gcpRegions
     if (selectedTimezone !== "all") {
       regions = regions.filter(r => r.timezone === selectedTimezone)
     }
     return regions
-  }, [selectedTimezone])
+  }, [selectedTimezone, dynamicGcpRegions, hasRealData])
 
   const totalCost = filteredRegions.reduce((sum, region) => sum + region.cost, 0)
   const totalSavings = gcpRecommendations.reduce((sum, rec) => sum + rec.savings, 0)
-  const avgUtilization = Math.round(gcpServices.reduce((sum, service) => sum + service.utilization, 0) / gcpServices.length)
-
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-background to-green-50 p-6 flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <RefreshCw className="h-12 w-12 mx-auto mb-4 animate-spin text-green-600" />
-          <h2 className="text-xl font-semibold mb-2">Loading GCP Resources...</h2>
-          <p className="text-muted-foreground">Fetching your compute instances, storage, and more</p>
-        </Card>
-      </div>
-    )
-  }
+  const avgUtilization = dynamicGcpServices.length > 0
+    ? Math.round(dynamicGcpServices.reduce((sum, service) => sum + service.utilization, 0) / dynamicGcpServices.length)
+    : 0
 
   // Show error state
-  if (error) {
+  if (gcpError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-background to-green-50 p-6 flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
           <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-600" />
           <h2 className="text-xl font-semibold mb-2">Error Loading GCP Data</h2>
-          <p className="text-muted-foreground mb-4">{error}</p>
+          <p className="text-muted-foreground mb-4">{gcpError.message || 'Failed to load GCP resources'}</p>
           <Button onClick={() => window.location.reload()} className="bg-green-600">
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -616,22 +669,28 @@ export default function GCPCloudPage() {
               <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">
                 Google Cloud Management 🌟
               </h1>
-              <p className="text-muted-foreground">AI-powered resource discovery and intelligent optimization</p>
+              <p className="text-muted-foreground">
+                {isLoading ? "Loading real-time data..." : hasRealData ? `Real-time data • ${totalResources} resources found` : "No GCP resources found - showing demo data"}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
               Sync
             </Button>
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button className="bg-gradient-to-r from-green-500 to-green-600">
+            <Button variant="outline" size="sm" className="bg-gradient-to-r from-green-500 to-green-600 text-white border-none hover:from-green-600 hover:to-green-700">
               <Settings className="h-4 w-4 mr-2" />
               Configure
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout} className="hover:bg-red-50 hover:text-red-600 hover:border-red-300">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
             </Button>
           </div>
         </motion.div>
@@ -651,7 +710,7 @@ export default function GCPCloudPage() {
                 </div>
 
                 <RegionFilter
-                  regions={gcpRegions}
+                  regions={dynamicGcpRegions}
                   selectedRegion={selectedRegion}
                   onRegionChange={setSelectedRegion}
                 />
@@ -662,7 +721,7 @@ export default function GCPCloudPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Services</SelectItem>
-                    {gcpServices.map(service => (
+                    {dynamicGcpServices.map(service => (
                       <SelectItem key={service.name} value={service.name}>
                         <div className="flex items-center space-x-2">
                           <service.icon className="h-3 w-3" />
@@ -673,9 +732,24 @@ export default function GCPCloudPage() {
                   </SelectContent>
                 </Select>
 
+                <Select value={timeRange.toString()} onValueChange={(value) => setTimeRange(parseInt(value))}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Time Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Last 24 hours</SelectItem>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="14">Last 14 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="60">Last 60 days</SelectItem>
+                    <SelectItem value="90">Last 90 days</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <div className="flex items-center space-x-2 ml-auto">
                   <span className="text-sm text-muted-foreground">
-                    {totalResources} resources • ${totalCost.toLocaleString()} monthly
+                    {totalResources} resources • ${totalCost.toLocaleString('en-US')} ({timeRange} days)
+                    {hasRealData && <Badge className="ml-2 bg-green-500">Real Data</Badge>}
                   </span>
                 </div>
               </div>
@@ -694,14 +768,31 @@ export default function GCPCloudPage() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-green-800 font-medium">Monthly Spend</p>
-                  <p className="text-2xl font-bold text-green-900">
-                    ${totalCost.toLocaleString()}
-                  </p>
-                  <div className="flex items-center space-x-1 mt-1">
-                    <TrendingUp className="h-3 w-3 text-blue-600" />
-                    <span className="text-xs text-blue-600 font-medium">5% vs last month</span>
-                  </div>
+                  <p className="text-sm text-green-800 font-medium">Total Spend ({timeRange}d)</p>
+                  {isLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <RefreshCw className="h-5 w-5 animate-spin text-green-600" />
+                      <span className="text-sm text-green-600">Loading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline space-x-2">
+                        <p className="text-2xl font-bold text-green-900">
+                          ${totalCost.toLocaleString('en-US')}
+                        </p>
+                        <span className="text-sm text-muted-foreground">
+                          ({timeRange === 1 ? '24hrs' : timeRange + ' days'})
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1 mt-1">
+                        {hasRealData ? (
+                          <span className="text-xs text-blue-600 font-medium">Real-time data</span>
+                        ) : (
+                          <span className="text-xs text-gray-500">Demo data</span>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <DollarSign className="h-8 w-8 text-green-600" />
               </div>
@@ -714,7 +805,7 @@ export default function GCPCloudPage() {
                 <div>
                   <p className="text-sm text-blue-800 font-medium">Total Resources</p>
                   <p className="text-2xl font-bold text-blue-900">{totalResources}</p>
-                  <p className="text-xs text-blue-600">{runningInstances} running • {computeInstances.length} instances</p>
+                  <p className="text-xs text-blue-600">{runningInstances} running • {realData.computeInstances.length} instances</p>
                 </div>
                 <Server className="h-8 w-8 text-blue-600" />
               </div>
@@ -726,7 +817,7 @@ export default function GCPCloudPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-purple-800 font-medium">AI Savings</p>
-                  <p className="text-2xl font-bold text-purple-900">${totalSavings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-purple-900">${totalSavings.toLocaleString('en-US')}</p>
                   <p className="text-xs text-purple-600">{gcpRecommendations.length} ML recommendations</p>
                 </div>
                 <Brain className="h-8 w-8 text-purple-600" />
@@ -771,15 +862,15 @@ export default function GCPCloudPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <GCPServiceDonutChart data={gcpServices} />
+                  <GCPServiceDonutChart data={dynamicGcpServices} />
                   <div className="grid grid-cols-2 gap-2 mt-4">
-                    {gcpServices.slice(0, 4).map((service, index) => (
+                    {dynamicGcpServices.slice(0, 4).map((service, index) => (
                       <div key={service.name} className="flex items-center space-x-2 text-xs">
                         <div
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: service.color }}
                         />
-                        <span>{service.name}: ${service.cost.toLocaleString()}</span>
+                        <span>{service.name}: ${service.cost.toLocaleString('en-US')}</span>
                       </div>
                     ))}
                   </div>
@@ -811,7 +902,7 @@ export default function GCPCloudPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold text-green-600">${region.cost.toLocaleString()}</div>
+                          <div className="font-semibold text-green-600">${region.cost.toLocaleString('en-US')}</div>
                           <div className="text-xs text-muted-foreground">monthly</div>
                         </div>
                       </motion.div>
@@ -825,17 +916,17 @@ export default function GCPCloudPage() {
           {/* Resources Tab */}
           <TabsContent value="resources" className="space-y-6">
             {/* Real Compute Instances */}
-            {computeInstances.length > 0 && (
+            {realData.computeInstances.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Server className="h-5 w-5 text-blue-600" />
-                    <span>Compute Engine Instances ({computeInstances.length})</span>
+                    <span>Compute Engine Instances ({realData.computeInstances.length})</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {computeInstances.map((instance, idx) => {
+                    {realData.computeInstances.map((instance, idx) => {
                       const zone = instance.zone?.split('/').pop() || ''
                       const machineType = instance.machineType?.split('/').pop() || ''
                       const isRunning = instance.status === 'RUNNING'
@@ -875,7 +966,7 @@ export default function GCPCloudPage() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {gcpServices.map((service, index) => (
+              {dynamicGcpServices.map((service, index) => (
                 <motion.div
                   key={service.name}
                   initial={{ opacity: 0, y: 20 }}
@@ -913,7 +1004,7 @@ export default function GCPCloudPage() {
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-bold text-green-600">
-                            ${service.cost.toLocaleString()}
+                            ${service.cost.toLocaleString('en-US')}
                           </div>
                           <div className="text-xs text-muted-foreground">monthly cost</div>
                         </div>
@@ -996,7 +1087,7 @@ export default function GCPCloudPage() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
                       <span className="font-medium">Current Spend</span>
-                      <span className="font-bold text-green-600">${totalCost.toLocaleString()}</span>
+                      <span className="font-bold text-green-600">${totalCost.toLocaleString('en-US')}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                       <span className="font-medium">Traditional Forecast</span>
@@ -1012,7 +1103,7 @@ export default function GCPCloudPage() {
                     </div>
                     <div className="text-center p-4 bg-gradient-to-r from-green-100 to-blue-100 rounded-lg">
                       <div className="text-2xl font-bold text-green-600 mb-1">
-                        ${totalSavings.toLocaleString()}/month
+                        ${totalSavings.toLocaleString('en-US')}/month
                       </div>
                       <div className="text-sm text-muted-foreground">AI-powered savings potential</div>
                     </div>

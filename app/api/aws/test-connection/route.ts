@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const MCP_URL = process.env.MCP_SERVER_URL || "http://localhost:3001";
+import { awsClient } from "@/lib/mcp";
 
 /**
  * POST /api/aws/test-connection
@@ -12,37 +11,20 @@ export async function POST(request: NextRequest) {
     const { profile = "default" } = await request.json();
 
     // Hit MCP health first (fast fail)
-    const health = await fetch(`${MCP_URL}/health`).then(r => r.ok ? r.json() : null);
-    if (!health || health.status !== "ok") {
+    const health = await awsClient.healthCheck();
+    if (!health.healthy) {
       return NextResponse.json(
         { ok: false, via: "mcp", profile, error: "MCP server not reachable/healthy" },
         { status: 502 }
       );
     }
 
-    // Ask MCP for 0-day cost (cheap) just to validate creds & profile
-    const resp = await fetch(`${MCP_URL}/mcp/tools/call`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        tool: "get_cost",
-        arguments: {
-          profiles: [profile],
-          all_profiles: false,
-          time_range_days: 1
-        }
-      })
+    // Ask MCP for 1-day cost (cheap) just to validate creds & profile
+    const data = await awsClient.callTool("get_cost", {
+      profiles: [profile],
+      all_profiles: false,
+      time_range_days: 1
     });
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      return NextResponse.json(
-        { ok: false, via: "mcp", profile, error: `MCP call failed: ${resp.status} ${text}` },
-        { status: 502 }
-      );
-    }
-
-    const data = await resp.json();
 
     // Try to extract account id from MCP result (best effort)
     const key = `Profile Name: ${profile}`;

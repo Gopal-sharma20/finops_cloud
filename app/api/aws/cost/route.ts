@@ -1,22 +1,6 @@
 // app/api/aws/cost/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-const MCP_URL = process.env.MCP_SERVER_URL || "http://localhost:3001";
-
-async function callMCP(tool: string, args: Record<string, any>) {
-  const res = await fetch(`${MCP_URL}/mcp/tools/call`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ tool, arguments: args }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `MCP call failed (${res.status} ${res.statusText}) ${text ? `- ${text}` : ""}`
-    );
-  }
-  return res.json();
-}
+import { awsClient } from "@/lib/mcp";
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +29,7 @@ export async function POST(request: NextRequest) {
     if (tags) mcpArgs.tags = tags;
     if (dimensions) mcpArgs.dimensions = dimensions;
 
-    const data = await callMCP("get_cost", mcpArgs);
+    const data = await awsClient.callTool("get_cost", mcpArgs);
 
     // MCP already returns { accounts_cost_data, errors_for_profiles }
     return NextResponse.json(data);
@@ -78,7 +62,7 @@ export async function GET(request: NextRequest) {
     };
     if (typeof timeRangeDays === "number") baseArgs.time_range_days = timeRangeDays;
 
-    const totalResp = await callMCP("get_cost", baseArgs);
+    const totalResp = await awsClient.callTool("get_cost", baseArgs);
 
     // Extract the per-profile block
     const key = `Profile Name: ${profile}`;
@@ -103,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     // 2) Region breakdown (second MCP call with group_by=REGION)
     const regionArgs = { ...baseArgs, group_by: "REGION" };
-    const regionResp = await callMCP("get_cost", regionArgs);
+    const regionResp = await awsClient.callTool("get_cost", regionArgs);
     const regionBlock = regionResp?.accounts_cost_data?.[key];
     const costByRegion = regionBlock?.["Cost By REGION"] || {};
 

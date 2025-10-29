@@ -1,24 +1,6 @@
 // app/api/aws/audit/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-const MCP_URL = process.env.MCP_SERVER_URL || "http://localhost:3001";
-
-async function callMCP(tool: string, args: Record<string, any>) {
-  const res = await fetch(`${MCP_URL}/mcp/tools/call`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ tool, arguments: args }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `MCP call failed (${res.status} ${res.statusText})${
-        text ? ` - ${text}` : ""
-      }`
-    );
-  }
-  return res.json();
-}
+import { awsClient } from "@/lib/mcp";
 
 /**
  * POST /api/aws/audit
@@ -35,21 +17,30 @@ export async function POST(request: NextRequest) {
       allProfiles = false,
     } = body ?? {};
 
+    console.log("🔍 [AWS Audit API] Request received:", { profile, regions, allProfiles });
+
     // Map UI body → MCP args
     const mcpArgs: Record<string, any> = { regions };
     if (allProfiles) mcpArgs.all_profiles = true;
     else mcpArgs.profiles = [profile];
 
-    const mcpData = await callMCP("run_finops_audit", mcpArgs);
+    console.log("📡 [AWS Audit API] Calling MCP tool 'run_finops_audit' with args:", mcpArgs);
+
+    const mcpData = await awsClient.callTool("run_finops_audit", mcpArgs);
+
+    console.log("✅ [AWS Audit API] MCP response received:", JSON.stringify(mcpData, null, 2));
 
     // Preserve your existing response shape and also return MCP raw payload.
-    return NextResponse.json({
+    const response = {
       success: true,
       report: mcpData,   // what your UI previously called "auditReport"
       mcp: mcpData,      // optional: raw MCP fields like "Audit Report", etc.
-    });
+    };
+
+    console.log("📤 [AWS Audit API] Sending response to client");
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Error running FinOps audit (MCP proxy):", error);
+    console.error("❌ [AWS Audit API] Error running FinOps audit (MCP proxy):", error);
     return NextResponse.json(
       {
         error: "Failed to run FinOps audit (MCP proxy)",

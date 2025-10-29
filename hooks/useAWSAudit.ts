@@ -53,15 +53,21 @@ export function useProfileAudit(
   return useQuery({
     queryKey: ["aws-audit", profile, regions],
     queryFn: async () => {
+      console.log(`🔍 Fetching AWS audit data for profile: ${profile}, regions: ${regions.join(",")}`)
       const response = await fetch(
-        `/api/aws/audit?profile=${profile}&regions=${regions.join(",")}`
+        `/api/aws/audit?profile=${profile}&regions=${regions.join(",")}`,
+        {
+          cache: 'no-store', // Force fresh data on manual refetch
+        }
       );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch audit data: ${response.statusText}`);
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log(`✅ AWS audit data fetched:`, data)
+      return data;
     },
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,

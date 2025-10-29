@@ -1,7 +1,6 @@
 // app/api/azure/test-connection/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-const AZURE_MCP_URL = process.env.AZURE_MCP_SERVER_URL || "http://localhost:8000";
+import { azureClient } from "@/lib/mcp";
 
 /**
  * POST /api/azure/test-connection
@@ -19,11 +18,8 @@ export async function POST(request: NextRequest) {
     } = await request.json();
 
     // Hit Azure REST API health endpoint first (fast check)
-    const health = await fetch(`${AZURE_MCP_URL}/health`)
-      .then(r => r.ok)
-      .catch(() => false);
-
-    if (!health) {
+    const health = await azureClient.healthCheck();
+    if (!health.healthy) {
       return NextResponse.json(
         { ok: false, via: "rest-api", profile, error: "Azure REST API server not reachable" },
         { status: 502 }
@@ -48,21 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call REST API to validate credentials
-    const resp = await fetch(`${AZURE_MCP_URL}/api/cost`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(mcpArgs)
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      return NextResponse.json(
-        { ok: false, via: "rest-api", profile, error: `Azure REST API call failed: ${resp.status} ${text}` },
-        { status: 502 }
-      );
-    }
-
-    const data = await resp.json();
+    const data = await azureClient.callAPI("/api/cost", mcpArgs);
 
     // Check if the response contains an error (authentication or permission issue)
     if (data.error) {

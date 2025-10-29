@@ -151,24 +151,111 @@ const CostTrendChart: React.FC<CostTrendChartProps> = ({
   onPointClick,
   onExport
 }) => {
-  const [timeRange, setTimeRange] = useState("30d")
-  const [viewMode, setViewMode] = useState("cost")
-
   const processedData = useMemo(() => {
-    return data.map(point => ({
-      ...point,
-      date: format(new Date(point.date), "MMM dd"),
-      anomalies: point.anomaly ? point.actualCost : null
-    }))
+    if (!data || data.length === 0) {
+      console.log('CostTrendChart: No data received')
+      return []
+    }
+
+    console.log('CostTrendChart: Processing data', {
+      dataLength: data.length,
+      sample: data[0]
+    })
+
+    try {
+      return data.map(point => ({
+        ...point,
+        date: format(new Date(point.date), "MMM dd"),
+        anomalies: point.anomaly ? point.actualCost : null
+      }))
+    } catch (err) {
+      console.error('CostTrendChart: Error processing data', err)
+      return []
+    }
   }, [data])
 
   const maxValue = useMemo(() => {
+    if (!data || data.length === 0) {
+      return 1000 // Default value if no data
+    }
     return Math.max(...data.map(d => Math.max(
-      d.actualCost,
+      d.actualCost || 0,
       d.forecastCost || 0,
       d.confidenceUpper || 0
     )))
   }, [data])
+
+  // Check if data has any non-zero values
+  const hasNonZeroData = useMemo(() => {
+    if (!data || data.length === 0) return false
+    return data.some(point =>
+      (point.actualCost && point.actualCost > 0) ||
+      (point.forecastCost && point.forecastCost > 0)
+    )
+  }, [data])
+
+  // Show message if no data
+  if (!data || data.length === 0) {
+    return (
+      <Card className={cn("", className)}>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">
+            Cost Trend Analysis
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Historical data with {forecastPeriod}-day forecast
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center" style={{ height }}>
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No cost data available</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Data will appear once cost trends are fetched from your connected cloud providers
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show message if all values are zero
+  if (!hasNonZeroData) {
+    return (
+      <Card className={cn("", className)}>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">
+            Cost Trend Analysis
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Historical data with {forecastPeriod}-day forecast
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center" style={{ height }}>
+            <div className="text-center max-w-md">
+              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <p className="text-muted-foreground font-medium">No cost data for selected period</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Your cloud account shows $0 costs for the past {data.length} days.
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                This may indicate:
+              </p>
+              <ul className="text-sm text-muted-foreground mt-2 text-left list-disc list-inside">
+                <li>Free credits are covering all charges</li>
+                <li>No resources running or deployed</li>
+                <li>Billing data not yet available (24-48 hour delay)</li>
+                <li>Resources exist but not incurring costs</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className={cn("", className)}>
@@ -184,22 +271,6 @@ const CostTrendChart: React.FC<CostTrendChartProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <TimeRangeSelector
-              options={["7d", "30d", "90d", "1y"]}
-              selected={timeRange}
-              onChange={setTimeRange}
-            />
-
-            <ViewModeToggle
-              options={[
-                { value: "cost", label: "Cost" },
-                { value: "utilization", label: "Utilization" },
-                { value: "efficiency", label: "Efficiency" }
-              ]}
-              selected={viewMode}
-              onChange={setViewMode}
-            />
-
             {onExport && (
               <div className="flex">
                 <Button
@@ -230,7 +301,11 @@ const CostTrendChart: React.FC<CostTrendChartProps> = ({
             <ComposedChart
               data={processedData}
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              onClick={onPointClick}
+              onClick={(state: any) => {
+                if (onPointClick && state?.activePayload?.[0]?.payload) {
+                  onPointClick(state.activePayload[0].payload)
+                }
+              }}
             >
               <defs>
                 <linearGradient id="confidenceGradient" x1="0" y1="0" x2="0" y2="1">
@@ -272,6 +347,7 @@ const CostTrendChart: React.FC<CostTrendChartProps> = ({
               <Line
                 type="monotone"
                 dataKey="actualCost"
+                name="Actual Cost"
                 stroke="#3b82f6"
                 strokeWidth={3}
                 dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
@@ -283,6 +359,7 @@ const CostTrendChart: React.FC<CostTrendChartProps> = ({
               <Line
                 type="monotone"
                 dataKey="forecastCost"
+                name="Forecast"
                 stroke="#8b5cf6"
                 strokeWidth={2}
                 strokeDasharray="5 5"
@@ -308,7 +385,7 @@ const CostTrendChart: React.FC<CostTrendChartProps> = ({
                   strokeDasharray="3 3"
                   label={{
                     value: annotation.label,
-                    position: 'topLeft',
+                    position: 'top' as any,
                     style: { fontSize: '12px', fill: '#f59e0b' }
                   }}
                 />

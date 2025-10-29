@@ -28,7 +28,29 @@ export default function HomePage() {
   }
 
   const handleSignIn = () => {
-    router.push("/dashboard/cfo") // Demo redirect
+    // Check if user has already connected to cloud providers
+    if (typeof window !== 'undefined') {
+      const onboardingData = localStorage.getItem('cloudoptima-onboarding')
+      if (onboardingData) {
+        const data = JSON.parse(onboardingData)
+        const connectedProviders = data.connectedProviders || []
+
+        // Redirect to appropriate cloud dashboard if connected
+        if (connectedProviders.includes('aws')) {
+          router.push('/clouds/aws')
+          return
+        } else if (connectedProviders.includes('azure')) {
+          router.push('/clouds/azure')
+          return
+        } else if (connectedProviders.includes('gcp')) {
+          router.push('/clouds/gcp')
+          return
+        }
+      }
+    }
+
+    // No providers connected, go to onboarding
+    router.push("/onboarding")
   }
 
   return (

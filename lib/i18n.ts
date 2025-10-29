@@ -63,16 +63,16 @@ export const LOCALE_DATE_FORMATS: Record<Locale, string> = {
   ko: "YYYY.MM.DD"
 }
 
-// Number format mappings
-export const LOCALE_NUMBER_FORMATS: Record<Locale, Intl.NumberFormatOptions> = {
-  en: { locale: "en-US" },
-  es: { locale: "es-ES" },
-  fr: { locale: "fr-FR" },
-  de: { locale: "de-DE" },
-  pt: { locale: "pt-PT" },
-  ja: { locale: "ja-JP" },
-  zh: { locale: "zh-CN" },
-  ko: { locale: "ko-KR" }
+// Number format mappings - locale strings for Intl.NumberFormat
+export const LOCALE_NUMBER_FORMATS: Record<Locale, string> = {
+  en: "en-US",
+  es: "es-ES",
+  fr: "fr-FR",
+  de: "de-DE",
+  pt: "pt-PT",
+  ja: "ja-JP",
+  zh: "zh-CN",
+  ko: "ko-KR"
 }
 
 // Utility functions
@@ -128,8 +128,8 @@ export const formatNumber = (
   locale: Locale,
   options?: Intl.NumberFormatOptions
 ): string => {
-  const config = LOCALE_NUMBER_FORMATS[locale]
-  return new Intl.NumberFormat(config.locale, options).format(value)
+  const localeString = LOCALE_NUMBER_FORMATS[locale]
+  return new Intl.NumberFormat(localeString, options).format(value)
 }
 
 // Format currency according to locale
@@ -139,9 +139,9 @@ export const formatCurrencyForLocale = (
   currency?: string
 ): string => {
   const currencyCode = currency || getDefaultCurrency(locale)
-  const config = LOCALE_NUMBER_FORMATS[locale]
+  const localeString = LOCALE_NUMBER_FORMATS[locale]
 
-  return new Intl.NumberFormat(config.locale, {
+  return new Intl.NumberFormat(localeString, {
     style: "currency",
     currency: currencyCode
   }).format(value)
@@ -153,8 +153,8 @@ export const formatDateForLocale = (
   locale: Locale,
   options?: Intl.DateTimeFormatOptions
 ): string => {
-  const config = LOCALE_NUMBER_FORMATS[locale]
-  return new Intl.DateTimeFormat(config.locale, options).format(date)
+  const localeString = LOCALE_NUMBER_FORMATS[locale]
+  return new Intl.DateTimeFormat(localeString, options).format(date)
 }
 
 // Relative time formatting
@@ -163,8 +163,8 @@ export const formatRelativeTime = (
   unit: Intl.RelativeTimeFormatUnit,
   locale: Locale
 ): string => {
-  const config = LOCALE_NUMBER_FORMATS[locale]
-  const rtf = new Intl.RelativeTimeFormat(config.locale, {
+  const localeString = LOCALE_NUMBER_FORMATS[locale]
+  const rtf = new Intl.RelativeTimeFormat(localeString, {
     numeric: "auto"
   })
   return rtf.format(value, unit)

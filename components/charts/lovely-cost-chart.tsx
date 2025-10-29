@@ -74,7 +74,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               style={{ backgroundColor: entry.color }}
             />
             <span className="capitalize">{entry.dataKey}:</span>
-            <span className="font-semibold">${entry.value.toLocaleString()}</span>
+            <span className="font-semibold">${entry.value.toLocaleString('en-US')}</span>
           </div>
         ))}
       </div>
@@ -95,7 +95,7 @@ const AnimatedNumber = ({ value, suffix = "" }: { value: number; suffix?: string
 
   return (
     <span className="tabular-nums transition-all duration-1000 ease-out">
-      {displayValue.toLocaleString()}{suffix}
+      {displayValue.toLocaleString('en-US')}{suffix}
     </span>
   )
 }
@@ -184,7 +184,7 @@ export const LovelyCostChart = () => {
                         <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-pink-200">
                           <p className="font-medium text-sm">{data.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            ${data.cost.toLocaleString()} ({data.value}%)
+                            ${data.cost.toLocaleString('en-US')} ({data.value}%)
                           </p>
                         </div>
                       )
@@ -247,7 +247,7 @@ export const LovelyCostChart = () => {
                       <div className="bg-white/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border border-pink-200">
                         <p className="font-medium text-sm mb-2">{label}</p>
                         <div className="space-y-1 text-xs">
-                          <p>Cost: <span className="font-semibold">${data.cost.toLocaleString()}</span></p>
+                          <p>Cost: <span className="font-semibold">${data.cost.toLocaleString('en-US')}</span></p>
                           <p>Resources: <span className="font-semibold">{data.resources}</span></p>
                           <p>Efficiency: <span className="font-semibold">{data.efficiency}%</span></p>
                         </div>

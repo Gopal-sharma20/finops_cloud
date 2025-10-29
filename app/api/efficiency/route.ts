@@ -52,11 +52,16 @@ interface EfficiencyMetrics {
 }
 
 /**
- * GET /api/efficiency
+ * GET /api/efficiency (deprecated)
+ * POST /api/efficiency - with connectedProviders and GCP credentials
  * Calculates resource efficiency metrics across all cloud providers
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
+    const body = await request.json();
+    const connectedProviders: string[] = body.connectedProviders || [];
+    const gcpCredentials = body.gcpCredentials;
+
     const metrics: EfficiencyMetrics = {
       overallScore: 0,
       resourceUtilization: 0,
@@ -71,8 +76,9 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Fetch AWS audit data
-    try {
+    // Fetch AWS audit data - only if connected
+    if (connectedProviders.includes('aws')) {
+      try {
       const awsAudit = await callAPI(AWS_REST_URL, "/api/audit", {
         all_profiles: true,
       });
@@ -100,13 +106,15 @@ export async function GET(request: NextRequest) {
         metrics.breakdown.aws.score =
           awsTotal > 0 ? Math.round(((awsTotal - awsUnused) / awsTotal) * 100) : 100;
       }
-    } catch (err) {
-      console.error("AWS audit fetch failed:", err);
-      metrics.breakdown.aws.score = 0;
+      } catch (err) {
+        console.error("AWS audit fetch failed:", err);
+        metrics.breakdown.aws.score = 0;
+      }
     }
 
-    // Fetch Azure audit data
-    try {
+    // Fetch Azure audit data - only if connected
+    if (connectedProviders.includes('azure')) {
+      try {
       const azureAudit = await callAPI(AZURE_REST_URL, "/api/audit", {
         all_profiles: true,
       });
@@ -134,16 +142,20 @@ export async function GET(request: NextRequest) {
         metrics.breakdown.azure.score =
           azureTotal > 0 ? Math.round(((azureTotal - azureUnused) / azureTotal) * 100) : 100;
       }
-    } catch (err) {
-      console.error("Azure audit fetch failed:", err);
-      metrics.breakdown.azure.score = 0;
+      } catch (err) {
+        console.error("Azure audit fetch failed:", err);
+        metrics.breakdown.azure.score = 0;
+      }
     }
 
-    // Fetch GCP audit data
-    try {
-      const gcpAudit = await callAPI(GCP_REST_URL, "/api/audit", {
-        projectId: process.env.GCP_PROJECT_ID,
-      });
+    // Fetch GCP audit data - only if connected and credentials provided
+    if (connectedProviders.includes('gcp') && gcpCredentials?.projectId) {
+      try {
+        const gcpAudit = await callAPI(GCP_REST_URL, "/api/audit", {
+          projectId: gcpCredentials.projectId,
+          serviceAccountJson: gcpCredentials.serviceAccountJson,
+          billingAccountId: gcpCredentials.billingAccountId,
+        });
 
       if (gcpAudit?.success && gcpAudit?.data) {
         // Parse instances
@@ -186,9 +198,10 @@ export async function GET(request: NextRequest) {
         metrics.breakdown.gcp.score =
           gcpTotal > 0 ? Math.round(((gcpTotal - gcpUnused) / gcpTotal) * 100) : 100;
       }
-    } catch (err) {
-      console.error("GCP audit fetch failed:", err);
-      metrics.breakdown.gcp.score = 0;
+      } catch (err) {
+        console.error("GCP audit fetch failed:", err);
+        metrics.breakdown.gcp.score = 0;
+      }
     }
 
     // Calculate overall metrics

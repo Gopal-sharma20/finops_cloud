@@ -36,7 +36,7 @@ interface CloudProvider {
 }
 
 interface CloudConnectorProps {
-  providers: CloudProvider[]
+  providers?: CloudProvider[]
   onConnect: (providerId: string, credentials: Record<string, string>) => Promise<void>
   connectedProviders: string[]
   className?: string
