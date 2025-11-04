@@ -211,12 +211,7 @@ const CloudConnector: React.FC<CloudConnectorProps> = ({
 
   return (
     <div className={cn("space-y-6", className)}>
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-semibold">Connect Your Cloud Providers</h2>
-        <p className="text-muted-foreground">
-          Securely connect your cloud accounts to start monitoring costs across all your infrastructure
-        </p>
-      </div>
+      {/* Removed duplicate heading - now using parent page heading */}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {providers.map((provider) => {

@@ -84,32 +84,26 @@ export default function ConnectProvidersPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => router.push('/onboarding')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Onboarding
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/onboarding')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
           <div className="flex items-center space-x-2">
             <Cloud className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Connect Cloud Providers</h1>
           </div>
-          <div className="w-32" /> {/* Spacer for alignment */}
+          <div className="w-24" /> {/* Spacer for alignment */}
         </div>
 
         {/* Main Card */}
         <Card className="border-2">
           <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-purple-50">
-            <CardTitle className="flex items-center justify-center space-x-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <span>Connect Your Cloud Accounts</span>
-            </CardTitle>
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              Link your AWS, Azure, or GCP accounts to start optimizing your cloud costs
+            <p className="text-center text-muted-foreground">
+              Securely connect your AWS, Azure, or GCP accounts to start monitoring and optimizing your cloud costs
             </p>
           </CardHeader>
           <CardContent className="p-6">
